@@ -1,11 +1,10 @@
+import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent
-} from "@dnd-kit/core";
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GripVertical, RefreshCcw, WandSparkles } from "lucide-react";
@@ -27,12 +26,20 @@ const SortableShot = ({
   return (
     <div
       ref={sortable.setNodeRef}
-      style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }}
+      style={{
+        transform: CSS.Transform.toString(sortable.transform),
+        transition: sortable.transition
+      }}
       className="grid gap-3 rounded-md border border-ink/10 bg-white p-4"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button {...sortable.attributes} {...sortable.listeners} className="rounded p-1 hover:bg-mist" title="Drag shot">
+          <button
+            {...sortable.attributes}
+            {...sortable.listeners}
+            className="rounded p-1 hover:bg-mist"
+            title="Drag shot"
+          >
             <GripVertical className="h-4 w-4" />
           </button>
           <strong>Shot {shot.order + 1}</strong>
@@ -44,10 +51,19 @@ const SortableShot = ({
         </Button>
       </div>
       <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-        <Textarea value={shot.visualPrompt} onChange={(event) => onChange({ ...shot, visualPrompt: event.target.value })} />
+        <Textarea
+          value={shot.visualPrompt}
+          onChange={(event) => onChange({ ...shot, visualPrompt: event.target.value })}
+        />
         <div className="grid gap-2">
-          <Input value={shot.subtitle} onChange={(event) => onChange({ ...shot, subtitle: event.target.value })} />
-          <Input value={shot.materialQuery} onChange={(event) => onChange({ ...shot, materialQuery: event.target.value })} />
+          <Input
+            value={shot.subtitle}
+            onChange={(event) => onChange({ ...shot, subtitle: event.target.value })}
+          />
+          <Input
+            value={shot.materialQuery}
+            onChange={(event) => onChange({ ...shot, materialQuery: event.target.value })}
+          />
           <Input
             type="number"
             value={shot.durationMs}
@@ -68,7 +84,9 @@ export const ScriptStudio = ({ products }: { products: ProductDto[] }) => {
   const selectedScriptId = useAppStore((state) => state.selectedScriptId);
   const setSelectedProductId = useAppStore((state) => state.setSelectedProductId);
   const setSelectedScriptId = useAppStore((state) => state.setSelectedScriptId);
-  const [prompt, setPrompt] = useState("Make the tone premium, trustworthy and conversion-oriented.");
+  const [prompt, setPrompt] = useState(
+    "Make the tone premium, trustworthy and conversion-oriented."
+  );
   const scriptsQuery = useQuery({
     queryKey: ["scripts", selectedProductId],
     queryFn: () => api.scripts(selectedProductId),
@@ -111,7 +129,9 @@ export const ScriptStudio = ({ products }: { products: ProductDto[] }) => {
 
   const regenerate = useMutation({
     mutationFn: (shotId: string) =>
-      api.regenerateShot(activeScript!.id, shotId, { prompt: "Refresh this shot with stronger product proof." }),
+      api.regenerateShot(activeScript!.id, shotId, {
+        prompt: "Refresh this shot with stronger product proof."
+      }),
     onSuccess: (job) => {
       useAppStore.getState().setActiveJobId(job.id);
       useAppStore.getState().setView("jobs");
@@ -134,7 +154,10 @@ export const ScriptStudio = ({ products }: { products: ProductDto[] }) => {
         <div className="grid gap-4">
           <label className="grid gap-2 text-sm font-semibold">
             Product
-            <Select value={selectedProductId ?? ""} onChange={(event) => setSelectedProductId(event.target.value || undefined)}>
+            <Select
+              value={selectedProductId ?? ""}
+              onChange={(event) => setSelectedProductId(event.target.value || undefined)}
+            >
               <option value="">Choose product</option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
@@ -147,7 +170,10 @@ export const ScriptStudio = ({ products }: { products: ProductDto[] }) => {
             Prompt adjustment
             <Textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} />
           </label>
-          <Button disabled={!selectedProductId || generate.isPending} onClick={() => generate.mutate()}>
+          <Button
+            disabled={!selectedProductId || generate.isPending}
+            onClick={() => generate.mutate()}
+          >
             <WandSparkles className="h-4 w-4" />
             {generate.isPending ? "Generating..." : "Generate 3 scripts"}
           </Button>
@@ -160,7 +186,9 @@ export const ScriptStudio = ({ products }: { products: ProductDto[] }) => {
                   setDraftShots(null);
                 }}
                 className={`rounded-md border p-3 text-left transition ${
-                  activeScript?.id === script.id ? "border-mint bg-mint/5" : "border-ink/10 bg-white hover:border-mint/50"
+                  activeScript?.id === script.id
+                    ? "border-mint bg-mint/5"
+                    : "border-ink/10 bg-white hover:border-mint/50"
                 }`}
               >
                 <strong>{script.title}</strong>
@@ -174,7 +202,11 @@ export const ScriptStudio = ({ products }: { products: ProductDto[] }) => {
       <Panel
         title="Storyboard Editor"
         action={
-          <Button variant="secondary" disabled={!activeScript || patch.isPending} onClick={() => patch.mutate()}>
+          <Button
+            variant="secondary"
+            disabled={!activeScript || patch.isPending}
+            onClick={() => patch.mutate()}
+          >
             Save script
           </Button>
         }
@@ -191,14 +223,21 @@ export const ScriptStudio = ({ products }: { products: ProductDto[] }) => {
               </div>
             </div>
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-              <SortableContext items={shots.map((shot) => shot.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext
+                items={shots.map((shot) => shot.id)}
+                strategy={verticalListSortingStrategy}
+              >
                 <div className="grid gap-3">
                   {shots.map((shot, index) => (
                     <SortableShot
                       key={shot.id}
                       shot={{ ...shot, order: index }}
                       onChange={(updated) =>
-                        setDraftShots(shots.map((candidate) => (candidate.id === updated.id ? updated : candidate)))
+                        setDraftShots(
+                          shots.map((candidate) =>
+                            candidate.id === updated.id ? updated : candidate
+                          )
+                        )
                       }
                       onRegenerate={() => regenerate.mutate(shot.id)}
                     />

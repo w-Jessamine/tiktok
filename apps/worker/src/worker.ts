@@ -30,7 +30,13 @@ const worker = new Worker(
     }
     if (job.name === "shot-regeneration") {
       await processShotRegeneration(
-        job.data as { jobId: string; scriptId: string; shotId: string; prompt?: string; materialQuery?: string }
+        job.data as {
+          jobId: string;
+          scriptId: string;
+          shotId: string;
+          prompt?: string;
+          materialQuery?: string;
+        }
       );
       return;
     }

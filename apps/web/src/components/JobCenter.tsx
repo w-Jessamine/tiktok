@@ -47,7 +47,10 @@ export const JobCenter = () => {
               <StatusPill tone={toneFor(job.status)}>{job.status}</StatusPill>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-white">
-              <div className="h-full rounded-full bg-mint transition-all" style={{ width: `${job.progress}%` }} />
+              <div
+                className="h-full rounded-full bg-mint transition-all"
+                style={{ width: `${job.progress}%` }}
+              />
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-ink/65">
               <span>{job.type}</span>
@@ -62,7 +65,10 @@ export const JobCenter = () => {
           </div>
           <div className="grid gap-3">
             {job.trace.map((event, index) => (
-              <div key={`${event.at}-${index}`} className="rounded-md border border-ink/10 bg-white p-3">
+              <div
+                key={`${event.at}-${index}`}
+                className="rounded-md border border-ink/10 bg-white p-3"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <strong>{event.stage}</strong>
                   <span className="text-xs text-ink/45">{new Date(event.at).toLocaleString()}</span>

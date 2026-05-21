@@ -10,7 +10,11 @@ import { JobCenter } from "./components/JobCenter";
 import { ProductForm } from "./components/ProductForm";
 import { ScriptStudio } from "./components/ScriptStudio";
 
-const navItems: Array<{ id: WorkspaceView; label: string; icon: ComponentType<{ className?: string }> }> = [
+const navItems: Array<{
+  id: WorkspaceView;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}> = [
   { id: "assets", label: "Assets", icon: Boxes },
   { id: "scripts", label: "Scripts", icon: Clapperboard },
   { id: "create", label: "Create", icon: Film },
@@ -61,9 +65,12 @@ export const App = () => {
         <section className="grid gap-4 rounded-lg border border-ink/10 bg-white p-5 shadow-panel lg:grid-cols-[1.1fr_0.9fr]">
           <div>
             <p className="text-sm font-semibold uppercase text-mint">End-to-end merchant demo</p>
-            <h2 className="mt-2 text-2xl font-black text-ink">Material to script to 15-second export</h2>
+            <h2 className="mt-2 text-2xl font-black text-ink">
+              Material to script to 15-second export
+            </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/65">
-              Build product asset memory, generate conversion scripts, edit storyboard shots, render previews, and inspect generation trace from one operational surface.
+              Build product asset memory, generate conversion scripts, edit storyboard shots, render
+              previews, and inspect generation trace from one operational surface.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
@@ -72,11 +79,15 @@ export const App = () => {
               <p className="text-xs text-ink/55">Products</p>
             </div>
             <div className="rounded-md bg-mist p-3">
-              <strong className="text-xl">{products.reduce((sum, p) => sum + (p.assets?.length ?? 0), 0)}</strong>
+              <strong className="text-xl">
+                {products.reduce((sum, p) => sum + (p.assets?.length ?? 0), 0)}
+              </strong>
               <p className="text-xs text-ink/55">Assets</p>
             </div>
             <div className="rounded-md bg-mist p-3">
-              <strong className="text-xl">{products.reduce((sum, p) => sum + (p.scripts?.length ?? 0), 0)}</strong>
+              <strong className="text-xl">
+                {products.reduce((sum, p) => sum + (p.scripts?.length ?? 0), 0)}
+              </strong>
               <p className="text-xs text-ink/55">Scripts</p>
             </div>
           </div>

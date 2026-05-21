@@ -17,7 +17,10 @@ export const registerProductRoutes = async (app: FastifyInstance) => {
   app.get("/api/products", async (request, reply) => {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: "desc" },
-      include: { assets: true, scripts: { include: { shots: true }, orderBy: { createdAt: "desc" } } }
+      include: {
+        assets: true,
+        scripts: { include: { shots: true }, orderBy: { createdAt: "desc" } }
+      }
     });
     return reply.send({ data: products, requestId: request.id });
   });

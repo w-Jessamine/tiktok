@@ -83,7 +83,10 @@ export const processVideoGeneration = async (data: {
       .map((slice) => {
         const haystack = `${slice.summary} ${slice.tags.join(" ")}`.toLowerCase();
         const keywords = shot.materialQuery.toLowerCase().split(/\s+/).filter(Boolean);
-        const lexical = keywords.reduce((score, keyword) => score + (haystack.includes(keyword) ? 1 : 0), 0);
+        const lexical = keywords.reduce(
+          (score, keyword) => score + (haystack.includes(keyword) ? 1 : 0),
+          0
+        );
         const similarity = cosineSimilarity(queryEmbedding, vectorFromJson(slice.embedding));
         return { slice, score: lexical * 2 + similarity };
       })
@@ -118,15 +121,24 @@ export const processVideoGeneration = async (data: {
         endMs: selected?.endMs
       });
     }
-    await appendTrace(data.jobId, "shot", `Shot ${shot.order + 1} generated via ${generated.provider}.`, {
-      note: generated.note,
-      status: generated.status,
-      selectedSliceId: selected?.id
-    });
+    await appendTrace(
+      data.jobId,
+      "shot",
+      `Shot ${shot.order + 1} generated via ${generated.provider}.`,
+      {
+        note: generated.note,
+        status: generated.status,
+        selectedSliceId: selected?.id
+      }
+    );
   }
 
   await updateJob(data.jobId, { progress: 70 });
-  await appendTrace(data.jobId, "render", "Compositing storyboard, subtitles and export file with FFmpeg.");
+  await appendTrace(
+    data.jobId,
+    "render",
+    "Compositing storyboard, subtitles and export file with FFmpeg."
+  );
   const renderOutput = await renderStoryboardVideo({
     scriptTitle: script.title,
     shots: script.shots,

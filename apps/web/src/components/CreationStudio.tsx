@@ -10,7 +10,9 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
   const selectedScriptId = useAppStore((state) => state.selectedScriptId);
   const setSelectedProductId = useAppStore((state) => state.setSelectedProductId);
   const setSelectedScriptId = useAppStore((state) => state.setSelectedScriptId);
-  const [aspectRatio, setAspectRatio] = useState<"VERTICAL_9_16" | "HORIZONTAL_16_9">("VERTICAL_9_16");
+  const [aspectRatio, setAspectRatio] = useState<"VERTICAL_9_16" | "HORIZONTAL_16_9">(
+    "VERTICAL_9_16"
+  );
   const scriptsQuery = useQuery({
     queryKey: ["scripts", selectedProductId],
     queryFn: () => api.scripts(selectedProductId),
@@ -43,7 +45,10 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
         <div className="grid gap-4">
           <label className="grid gap-2 text-sm font-semibold">
             Product
-            <Select value={selectedProductId ?? ""} onChange={(event) => setSelectedProductId(event.target.value || undefined)}>
+            <Select
+              value={selectedProductId ?? ""}
+              onChange={(event) => setSelectedProductId(event.target.value || undefined)}
+            >
               <option value="">Choose product</option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
@@ -54,7 +59,10 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
           </label>
           <label className="grid gap-2 text-sm font-semibold">
             Script
-            <Select value={selectedScriptId ?? ""} onChange={(event) => setSelectedScriptId(event.target.value || undefined)}>
+            <Select
+              value={selectedScriptId ?? ""}
+              onChange={(event) => setSelectedScriptId(event.target.value || undefined)}
+            >
               <option value="">Choose script</option>
               {scriptsQuery.data?.map((script) => (
                 <option key={script.id} value={script.id}>
@@ -65,12 +73,18 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
           </label>
           <label className="grid gap-2 text-sm font-semibold">
             Aspect ratio
-            <Select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as typeof aspectRatio)}>
+            <Select
+              value={aspectRatio}
+              onChange={(event) => setAspectRatio(event.target.value as typeof aspectRatio)}
+            >
               <option value="VERTICAL_9_16">Vertical 9:16 · 720x1280</option>
               <option value="HORIZONTAL_16_9">Horizontal 16:9 · 1280x720</option>
             </Select>
           </label>
-          <Button disabled={!selectedProductId || !selectedScriptId || generate.isPending} onClick={() => generate.mutate()}>
+          <Button
+            disabled={!selectedProductId || !selectedScriptId || generate.isPending}
+            onClick={() => generate.mutate()}
+          >
             <Play className="h-4 w-4" />
             {generate.isPending ? "Queuing..." : "Generate video"}
           </Button>
@@ -80,9 +94,17 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
       <Panel title="Preview & Export">
         <div className="grid gap-4">
           {exportsQuery.data?.map((item) => (
-            <article key={item.id} className="grid gap-4 rounded-md border border-ink/10 p-4 lg:grid-cols-[220px_1fr]">
+            <article
+              key={item.id}
+              className="grid gap-4 rounded-md border border-ink/10 p-4 lg:grid-cols-[220px_1fr]"
+            >
               <div className="aspect-[9/16] overflow-hidden rounded-md bg-ink">
-                <video src={item.fileUrl} poster={item.coverUrl ?? undefined} controls className="h-full w-full object-cover" />
+                <video
+                  src={item.fileUrl}
+                  poster={item.coverUrl ?? undefined}
+                  controls
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div className="grid content-start gap-3">
                 <div className="flex flex-wrap gap-2">

@@ -31,7 +31,9 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
     }
   });
   if (!response.ok) {
-    const error = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+    const error = (await response.json().catch(() => null)) as {
+      error?: { message?: string };
+    } | null;
     throw new Error(error?.error?.message ?? response.statusText);
   }
   const envelope = (await response.json()) as Envelope<T>;
@@ -112,7 +114,10 @@ export const api = {
     if (!response.ok) {
       throw new Error(response.statusText);
     }
-    const envelope = (await response.json()) as Envelope<{ asset: AssetDto; job: GenerationJobDto }>;
+    const envelope = (await response.json()) as Envelope<{
+      asset: AssetDto;
+      job: GenerationJobDto;
+    }>;
     envelope.data.asset.url = normalizeUrl(envelope.data.asset.url);
     return envelope.data;
   },
@@ -126,20 +131,32 @@ export const api = {
     return requestJson<AssetDto[]>(`/api/assets/search?${params.toString()}`);
   },
   generateScripts: (input: ScriptGenerateInput) =>
-    requestJson<ScriptDto[]>("/api/scripts/generate", { method: "POST", body: JSON.stringify(input) }),
+    requestJson<ScriptDto[]>("/api/scripts/generate", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
   scripts: (productId?: string) =>
     requestJson<ScriptDto[]>(`/api/scripts${productId ? `?productId=${productId}` : ""}`),
   patchScript: (id: string, input: ScriptPatchInput) =>
     requestJson<ScriptDto>(`/api/scripts/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   generateVideo: (input: VideoGenerateInput) =>
-    requestJson<GenerationJobDto>("/api/videos/generate", { method: "POST", body: JSON.stringify(input) }),
-  regenerateShot: (scriptId: string, shotId: string, input: { prompt?: string; materialQuery?: string }) =>
+    requestJson<GenerationJobDto>("/api/videos/generate", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+  regenerateShot: (
+    scriptId: string,
+    shotId: string,
+    input: { prompt?: string; materialQuery?: string }
+  ) =>
     requestJson<GenerationJobDto>(`/api/videos/${scriptId}/shots/${shotId}/regenerate`, {
       method: "POST",
       body: JSON.stringify(input)
     }),
   exports: async (scriptId?: string) => {
-    const exports = await requestJson<VideoExportDto[]>(`/api/videos/exports${scriptId ? `?scriptId=${scriptId}` : ""}`);
+    const exports = await requestJson<VideoExportDto[]>(
+      `/api/videos/exports${scriptId ? `?scriptId=${scriptId}` : ""}`
+    );
     return exports.map((item) => ({
       ...item,
       fileUrl: normalizeUrl(item.fileUrl),
@@ -148,7 +165,10 @@ export const api = {
   },
   job: (id: string) => requestJson<GenerationJobDto>(`/api/jobs/${id}`),
   retryJob: (id: string) =>
-    requestJson<GenerationJobDto>(`/api/jobs/${id}/retry`, { method: "POST", body: JSON.stringify({}) }),
+    requestJson<GenerationJobDto>(`/api/jobs/${id}/retry`, {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
   analytics: () => requestJson<AnalyticsFactor[]>("/api/analytics/factors"),
   createMetric: (input: {
     productId?: string;

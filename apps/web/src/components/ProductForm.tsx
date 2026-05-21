@@ -9,7 +9,9 @@ export const ProductForm = () => {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("GlowLift Travel Serum");
   const [category, setCategory] = useState("Beauty / Skincare");
-  const [sellingPoints, setSellingPoints] = useState("fast absorption\ntravel-friendly\nvisible glow");
+  const [sellingPoints, setSellingPoints] = useState(
+    "fast absorption\ntravel-friendly\nvisible glow"
+  );
   const [audience, setAudience] = useState("busy skincare shoppers");
   const [scenario, setScenario] = useState("morning routine before work");
   const create = useMutation({
@@ -44,7 +46,10 @@ export const ProductForm = () => {
         </label>
         <label className="grid gap-2 text-sm font-semibold md:col-span-2">
           Selling points
-          <Textarea value={sellingPoints} onChange={(event) => setSellingPoints(event.target.value)} />
+          <Textarea
+            value={sellingPoints}
+            onChange={(event) => setSellingPoints(event.target.value)}
+          />
         </label>
         <label className="grid gap-2 text-sm font-semibold">
           Audience

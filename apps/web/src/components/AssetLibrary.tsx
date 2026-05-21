@@ -74,11 +74,18 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
           </label>
           <label className="grid gap-2 text-sm font-semibold">
             File
-            <Input type="file" accept="image/*,video/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            <Input
+              type="file"
+              accept="image/*,video/*"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
           </label>
           <label className="grid gap-2 text-sm font-semibold">
             Source statement
-            <Textarea value={sourceStatement} onChange={(event) => setSourceStatement(event.target.value)} />
+            <Textarea
+              value={sourceStatement}
+              onChange={(event) => setSourceStatement(event.target.value)}
+            />
           </label>
           <Button disabled={!file || upload.isPending} onClick={() => upload.mutate()}>
             <UploadCloud className="h-4 w-4" />
@@ -97,7 +104,12 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
         action={
           <div className="relative w-full max-w-xs">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink/40" />
-            <Input className="pl-9" placeholder="keyword, tag, slice..." value={query} onChange={(event) => setQuery(event.target.value)} />
+            <Input
+              className="pl-9"
+              placeholder="keyword, tag, slice..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
         }
       >
@@ -107,9 +119,13 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold">{asset.filename}</h3>
-                  <p className="text-sm text-ink/60">{asset.videoSummary ?? "Waiting for multimodal analysis."}</p>
+                  <p className="text-sm text-ink/60">
+                    {asset.videoSummary ?? "Waiting for multimodal analysis."}
+                  </p>
                 </div>
-                <StatusPill tone={asset.complianceStatus === "APPROVED" ? "good" : "warn"}>{asset.complianceStatus}</StatusPill>
+                <StatusPill tone={asset.complianceStatus === "APPROVED" ? "good" : "warn"}>
+                  {asset.complianceStatus}
+                </StatusPill>
               </div>
               <div className="flex flex-wrap gap-2">
                 {asset.productTags.map((tag) => (

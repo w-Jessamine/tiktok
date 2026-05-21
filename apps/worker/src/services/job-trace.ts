@@ -20,10 +20,7 @@ export const appendTrace = async (
   await prisma.generationJob.update({
     where: { id: jobId },
     data: {
-      trace: [
-        ...trace,
-        event as Prisma.InputJsonObject
-      ] as Prisma.InputJsonArray
+      trace: [...trace, event as Prisma.InputJsonObject] as Prisma.InputJsonArray
     }
   });
 };

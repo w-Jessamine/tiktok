@@ -109,11 +109,13 @@ export const registerAssetRoutes = async (app: FastifyInstance) => {
 
     const ranked = assets
       .map((asset) => {
-        const text = `${asset.filename} ${asset.videoSummary ?? ""} ${asset.productTags.join(" ")}`.toLowerCase();
+        const text =
+          `${asset.filename} ${asset.videoSummary ?? ""} ${asset.productTags.join(" ")}`.toLowerCase();
         const sliceScore = Math.max(
           0,
           ...asset.slices.map((slice) => {
-            const lexical = q && `${slice.summary} ${slice.tags.join(" ")}`.toLowerCase().includes(q) ? 2 : 0;
+            const lexical =
+              q && `${slice.summary} ${slice.tags.join(" ")}`.toLowerCase().includes(q) ? 2 : 0;
             return lexical + cosineSimilarity(queryEmbedding, vectorFromJson(slice.embedding));
           })
         );

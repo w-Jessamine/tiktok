@@ -36,15 +36,29 @@ export const AnalyticsDashboard = () => {
             tooltip: { trigger: "axis" },
             legend: { data: ["CTR", "CVR", "GMV"] },
             grid: { left: 48, right: 24, bottom: 80 },
-            xAxis: { type: "category", data: data.map((item) => item.factor), axisLabel: { rotate: 24 } },
+            xAxis: {
+              type: "category",
+              data: data.map((item) => item.factor),
+              axisLabel: { rotate: 24 }
+            },
             yAxis: [
-              { type: "value", name: "Rate", axisLabel: { formatter: (value: number) => `${Math.round(value * 100)}%` } },
+              {
+                type: "value",
+                name: "Rate",
+                axisLabel: { formatter: (value: number) => `${Math.round(value * 100)}%` }
+              },
               { type: "value", name: "GMV" }
             ],
             series: [
               { name: "CTR", type: "bar", data: data.map((item) => item.ctr), color: "#1f9d8a" },
               { name: "CVR", type: "bar", data: data.map((item) => item.cvr), color: "#6d5bd0" },
-              { name: "GMV", type: "line", yAxisIndex: 1, data: data.map((item) => item.gmv), color: "#e76f51" }
+              {
+                name: "GMV",
+                type: "line",
+                yAxisIndex: 1,
+                data: data.map((item) => item.gmv),
+                color: "#e76f51"
+              }
             ]
           }}
         />
@@ -53,12 +67,32 @@ export const AnalyticsDashboard = () => {
       <div className="grid gap-5">
         <Panel title="Data Backflow">
           <div className="grid gap-3">
-            <Input value={factor} onChange={(event) => setFactor(event.target.value)} placeholder="Creative factor" />
+            <Input
+              value={factor}
+              onChange={(event) => setFactor(event.target.value)}
+              placeholder="Creative factor"
+            />
             <div className="grid grid-cols-2 gap-2">
-              <Input type="number" value={impressions} onChange={(event) => setImpressions(Number(event.target.value))} />
-              <Input type="number" value={clicks} onChange={(event) => setClicks(Number(event.target.value))} />
-              <Input type="number" value={conversions} onChange={(event) => setConversions(Number(event.target.value))} />
-              <Input type="number" value={gmv} onChange={(event) => setGmv(Number(event.target.value))} />
+              <Input
+                type="number"
+                value={impressions}
+                onChange={(event) => setImpressions(Number(event.target.value))}
+              />
+              <Input
+                type="number"
+                value={clicks}
+                onChange={(event) => setClicks(Number(event.target.value))}
+              />
+              <Input
+                type="number"
+                value={conversions}
+                onChange={(event) => setConversions(Number(event.target.value))}
+              />
+              <Input
+                type="number"
+                value={gmv}
+                onChange={(event) => setGmv(Number(event.target.value))}
+              />
             </div>
             <Button disabled={createMetric.isPending} onClick={() => createMetric.mutate()}>
               <Plus className="h-4 w-4" />
@@ -77,7 +111,8 @@ export const AnalyticsDashboard = () => {
                 </div>
                 <p className="text-sm text-ink/65">
                   CTR {(item.ctr * 100).toFixed(1)}% · CVR {(item.cvr * 100).toFixed(1)}% ·{" "}
-                  {item.impressions.toLocaleString()} impressions · {item.sources?.join(", ") ?? "seed"}
+                  {item.impressions.toLocaleString()} impressions ·{" "}
+                  {item.sources?.join(", ") ?? "seed"}
                 </p>
               </div>
             ))}

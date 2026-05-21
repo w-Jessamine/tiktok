@@ -8,7 +8,11 @@ export const connection = new IORedis(config.REDIS_URL, {
 
 export const generationQueue = new Queue("generation", { connection });
 
-export type QueueJobName = "asset-analysis" | "script-generation" | "video-generation" | "shot-regeneration";
+export type QueueJobName =
+  | "asset-analysis"
+  | "script-generation"
+  | "video-generation"
+  | "shot-regeneration";
 
 export const enqueueGenerationJob = async (name: QueueJobName, data: Record<string, unknown>) => {
   return generationQueue.add(name, data, {

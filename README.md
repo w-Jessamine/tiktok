@@ -47,6 +47,7 @@ npm.cmd exec --yes pnpm@9.12.3 -- --filter @videopilot/api dev
 ## Useful Commands
 
 ```bash
+pnpm check
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -55,6 +56,10 @@ docker compose up
 ```
 
 The Docker Compose path runs Postgres, Redis, MinIO, API, worker and web services together. The worker container installs FFmpeg for video composition.
+
+## Engineering Workflow
+
+See [docs/engineering.md](docs/engineering.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for CI gates, branch rules, review expectations, and secret-handling requirements.
 
 ## Environment Variables
 

@@ -72,7 +72,10 @@ const normalizeEmbedding = (vector: number[], dimensions = 64) => {
   if (!vector.length) {
     return seededVector("empty", dimensions);
   }
-  const padded = Array.from({ length: dimensions }, (_, index) => vector[index % vector.length] ?? 0);
+  const padded = Array.from(
+    { length: dimensions },
+    (_, index) => vector[index % vector.length] ?? 0
+  );
   const norm = Math.sqrt(padded.reduce((sum, value) => sum + value * value, 0)) || 1;
   return padded.map((value) => Number((value / norm).toFixed(6)));
 };
@@ -122,7 +125,12 @@ export class MockAiProvider implements AiProvider {
     const templateNames = ["Pain Point Hook", "Lifestyle Seeding", "Texture Detail"];
     return Array.from({ length: input.count }, (_, index) => {
       const title = `${input.product.title} - ${templateNames[index] ?? "Conversion Story"}`;
-      const style = index === 1 ? "sunny lifestyle UGC" : index === 2 ? "macro detail editorial" : "fast benefit-led demo";
+      const style =
+        index === 1
+          ? "sunny lifestyle UGC"
+          : index === 2
+            ? "macro detail editorial"
+            : "fast benefit-led demo";
       const shots: StoryboardShot[] = [
         {
           order: 0,
@@ -277,7 +285,7 @@ export class ArkAiProvider implements AiProvider {
       ],
       response_format: { type: "json_object" }
     });
-    const raw = response.choices[0]?.message?.content ?? "{\"scripts\":[]}";
+    const raw = response.choices[0]?.message?.content ?? '{"scripts":[]}';
     const parsed = JSON.parse(raw) as { scripts?: unknown[] };
     return (parsed.scripts ?? []).slice(0, input.count).map((script) =>
       scriptSchema.parse({

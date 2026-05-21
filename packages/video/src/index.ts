@@ -41,7 +41,12 @@ const escapeDrawText = (text: string) =>
 export const buildMockRenderFilter = (shots: StoryboardShot[], aspectRatio: VideoAspectRatio) => {
   const [width, height] = getResolution(aspectRatio).split("x").map(Number) as [number, number];
   const duration = getDurationMs(shots) / 1000;
-  const subtitle = escapeDrawText(shots.map((shot) => shot.subtitle).join("  |  ").slice(0, 160));
+  const subtitle = escapeDrawText(
+    shots
+      .map((shot) => shot.subtitle)
+      .join("  |  ")
+      .slice(0, 160)
+  );
   const title = escapeDrawText(shots[0]?.visualPrompt.slice(0, 90) ?? "AIGC product video");
   return [
     `color=c=#111827:s=${width}x${height}:d=${duration}`,
@@ -52,7 +57,8 @@ export const buildMockRenderFilter = (shots: StoryboardShot[], aspectRatio: Vide
   ].join(",");
 };
 
-const escapePathForConcat = (filePath: string) => filePath.replace(/\\/g, "/").replace(/'/g, "'\\''");
+const escapePathForConcat = (filePath: string) =>
+  filePath.replace(/\\/g, "/").replace(/'/g, "'\\''");
 
 const isRemoteUrl = (url: string) => /^https?:\/\//i.test(url);
 
@@ -152,7 +158,9 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
   const outputPath = path.join(input.outputDir, `${Date.now()}-${input.aspectRatio}.mp4`);
   const coverPath = outputPath.replace(/\.mp4$/, ".jpg");
   const durationMs = getDurationMs(input.shots);
-  const materialByOrder = new Map((input.materials ?? []).map((material) => [material.shotOrder, material]));
+  const materialByOrder = new Map(
+    (input.materials ?? []).map((material) => [material.shotOrder, material])
+  );
 
   const clipPaths: string[] = [];
   for (const shot of input.shots) {

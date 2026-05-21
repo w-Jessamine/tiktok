@@ -5,7 +5,8 @@ const prisma = new PrismaClient();
 const templates = [
   {
     name: "Pain Point Hook",
-    strategy: "Start with a recognizable daily frustration, reveal product, prove benefit, close with CTA.",
+    strategy:
+      "Start with a recognizable daily frustration, reveal product, prove benefit, close with CTA.",
     categories: ["Beauty", "Home", "General"],
     factors: {
       hook: "problem-first",

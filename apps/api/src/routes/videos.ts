@@ -52,7 +52,11 @@ export const registerVideoRoutes = async (app: FastifyInstance) => {
         ]
       }
     });
-    await enqueueGenerationJob("shot-regeneration", { jobId: job.id, scriptId: script.id, ...body });
+    await enqueueGenerationJob("shot-regeneration", {
+      jobId: job.id,
+      scriptId: script.id,
+      ...body
+    });
     return reply.send({ data: job, requestId: request.id });
   });
 
