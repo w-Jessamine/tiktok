@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AssetType {
+  PRODUCT_IMAGE
+  PRODUCT_VIDEO
+  REFERENCE_IMAGE
+  REFERENCE_VIDEO
+}
+
+enum ComplianceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum JobType {
+  ASSET_ANALYSIS
+  SCRIPT_GENERATION
+  VIDEO_GENERATION
+  SHOT_REGENERATION
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  RETRYABLE
+  FAILED
+  COMPLETED
+}
+
+enum VideoAspectRatio {
+  VERTICAL_9_16
+  HORIZONTAL_16_9
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  title          String
+  category       String
+  sellingPoints  String[]
+  audience       String
+  scenario       String
+  productUrl     String?
+  language       String          @default("en-US")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  assets         Asset[]
+  scripts        Script[]
+  generationJobs GenerationJob[]
+}
+
+model Asset {
+  id               String           @id @default(cuid())
+  productId        String?
+  type             AssetType
+  filename         String
+  objectKey        String
+  url              String
+  thumbnailUrl     String?
+  sourceStatement  String
+  complianceStatus ComplianceStatus @default(PENDING)
+  productTags      String[]
+  videoSummary     String?
+  embedding        Json?
+  metadata         Json             @default("{}")
+  createdAt        DateTime         @default(now())
+  product          Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  slices           AssetSlice[]
+}
+
+model AssetSlice {
+  id          String   @id @default(cuid())
+  assetId     String
+  startMs     Int
+  endMs       Int
+  thumbnailUrl String?
+  summary     String
+  tags        String[]
+  embedding   Json?
+  isUsable    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+model CreativeTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  strategy    String
+  factors     Json
+  categories  String[]
+  shotPattern Json
+  createdAt   DateTime @default(now())
+  scripts     Script[]
+}
+
+model Script {
+  id             String           @id @default(cuid())
+  productId      String
+  templateId     String?
+  title          String
+  narrative      String
+  visualStyle    String
+  language       String
+  constraints    String[]
+  prompt         String
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  product        Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  template       CreativeTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  shots          StoryboardShot[]
+  exports        VideoExport[]
+}
+
+model StoryboardShot {
+  id              String   @id @default(cuid())
+  scriptId        String
+  order           Int
+  durationMs      Int
+  visualPrompt    String
+  cameraMotion    String
+  materialQuery   String
+  subtitle        String
+  voiceover       String
+  bgmMood         String
+  selectedSliceId String?
+  generatedUrl    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  script          Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+}
+
+model GenerationJob {
+  id          String    @id @default(cuid())
+  type        JobType
+  status      JobStatus @default(QUEUED)
+  progress    Int       @default(0)
+  productId   String?
+  scriptId    String?
+  input       Json      @default("{}")
+  output      Json      @default("{}")
+  trace       Json      @default("[]")
+  error       String?
+  retryCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  product     Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model VideoExport {
+  id          String           @id @default(cuid())
+  scriptId    String
+  aspectRatio VideoAspectRatio
+  resolution  String
+  durationMs  Int
+  fileUrl     String
+  coverUrl    String?
+  config      Json            @default("{}")
+  createdAt   DateTime        @default(now())
+  script      Script          @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@videopilot/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "lint": "eslint src --ext .ts",
+    "start": "node dist/server.js",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.716.0",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/multipart": "^9.0.3",
+    "@fastify/static": "^8.0.3",
+    "@prisma/client": "^6.1.0",
+    "@videopilot/ai": "workspace:*",
+    "@videopilot/shared": "workspace:*",
+    "bullmq": "^5.34.2",
+    "fastify": "^5.2.1",
+    "ioredis": "^5.4.2",
+    "nanoid": "^5.0.9",
+    "pino": "^9.5.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

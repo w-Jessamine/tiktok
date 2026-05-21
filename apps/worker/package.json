@@ -1,0 +1,33 @@
+{
+  "name": "@videopilot/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/worker.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/worker.ts",
+    "lint": "eslint src --ext .ts",
+    "start": "node dist/worker.js",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.716.0",
+    "@prisma/client": "^6.1.0",
+    "@videopilot/ai": "workspace:*",
+    "@videopilot/shared": "workspace:*",
+    "@videopilot/video": "workspace:*",
+    "bullmq": "^5.34.2",
+    "execa": "^9.5.2",
+    "ioredis": "^5.4.2",
+    "pino": "^9.5.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
