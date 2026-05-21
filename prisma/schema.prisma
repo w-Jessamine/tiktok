@@ -54,6 +54,7 @@ model Product {
   assets         Asset[]
   scripts        Script[]
   generationJobs GenerationJob[]
+  factorMetrics  FactorMetric[]
 }
 
 model Asset {
@@ -87,6 +88,22 @@ model AssetSlice {
   isUsable    Boolean  @default(true)
   createdAt   DateTime @default(now())
   asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+model FactorMetric {
+  id          String   @id @default(cuid())
+  productId   String?
+  scriptId    String?
+  exportId    String?
+  factor      String
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  conversions Int      @default(0)
+  gmvCents    Int      @default(0)
+  source      String   @default("mock")
+  observedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 }
 
 model CreativeTemplate {

@@ -25,4 +25,12 @@ describe("AI providers", () => {
     const total = scripts[0]!.shots.reduce((sum, shot) => sum + shot.durationMs, 0);
     expect(total).toBeLessThanOrEqual(15000);
   });
+
+  it("mock embeddings are normalized and stable", async () => {
+    const provider = new MockAiProvider();
+    const first = await provider.embed("same factor");
+    const second = await provider.embed("same factor");
+    expect(first).toEqual(second);
+    expect(first.length).toBeGreaterThan(0);
+  });
 });

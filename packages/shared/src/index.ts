@@ -98,6 +98,18 @@ export const videoGenerateSchema = z.object({
   resolution: z.string().default("720x1280")
 });
 
+export const factorMetricCreateSchema = z.object({
+  productId: z.string().optional(),
+  scriptId: z.string().optional(),
+  exportId: z.string().optional(),
+  factor: z.string().min(2),
+  impressions: z.number().int().nonnegative(),
+  clicks: z.number().int().nonnegative(),
+  conversions: z.number().int().nonnegative(),
+  gmvCents: z.number().int().nonnegative(),
+  source: z.string().default("manual")
+});
+
 export const shotRegenerateSchema = z.object({
   shotId: z.string(),
   prompt: z.string().max(800).optional(),
@@ -115,6 +127,7 @@ export type ScriptModel = z.infer<typeof scriptSchema>;
 export type ScriptPatchInput = z.infer<typeof scriptPatchSchema>;
 export type ScriptGenerateInput = z.infer<typeof scriptGenerateSchema>;
 export type VideoGenerateInput = z.infer<typeof videoGenerateSchema>;
+export type FactorMetricCreateInput = z.infer<typeof factorMetricCreateSchema>;
 
 export type TraceEvent = {
   at: string;

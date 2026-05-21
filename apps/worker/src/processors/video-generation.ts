@@ -1,12 +1,42 @@
 import path from "node:path";
 import { createAiProvider } from "@videopilot/ai";
-import { renderStoryboardVideo } from "@videopilot/video";
+import { renderStoryboardVideo, type RenderMaterial } from "@videopilot/video";
 import type { VideoAspectRatio } from "@videopilot/shared";
 import { config } from "../config";
 import { prisma } from "../db";
 import { appendTrace, updateJob } from "../services/job-trace";
 
 const ai = createAiProvider();
+
+const cosineSimilarity = (a: number[], b: number[]) => {
+  const length = Math.min(a.length, b.length);
+  if (!length) {
+    return 0;
+  }
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let index = 0; index < length; index += 1) {
+    dot += (a[index] ?? 0) * (b[index] ?? 0);
+    normA += (a[index] ?? 0) ** 2;
+    normB += (b[index] ?? 0) ** 2;
+  }
+  return dot / ((Math.sqrt(normA) || 1) * (Math.sqrt(normB) || 1));
+};
+
+const vectorFromJson = (value: unknown): number[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is number => typeof item === "number");
+};
+
+const inferMaterialKind = (url: string): RenderMaterial["kind"] => {
+  if (/^https?:\/\//i.test(url)) {
+    return "remote-video";
+  }
+  return /\.(mp4|mov|webm|m4v)$/i.test(url) ? "video" : "image";
+};
 
 const localPublicUrl = (filePath: string) => {
   const normalized = filePath.replace(/\\/g, "/");
@@ -37,24 +67,60 @@ export const processVideoGeneration = async (data: {
     orderBy: { createdAt: "desc" }
   });
   const slices = assets.flatMap((asset) => asset.slices);
+  const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
+  const queryEmbeddings = new Map<string, number[]>();
+  const renderMaterials: RenderMaterial[] = [];
 
   await updateJob(data.jobId, { progress: 25 });
   for (const shot of script.shots) {
-    const selected = slices.find((slice) =>
-      `${slice.summary} ${slice.tags.join(" ")}`.toLowerCase().includes(shot.materialQuery.toLowerCase().split(" ")[0] ?? "")
-    );
+    const queryText = `${shot.materialQuery} ${shot.visualPrompt} ${shot.subtitle}`;
+    let queryEmbedding = queryEmbeddings.get(queryText);
+    if (!queryEmbedding) {
+      queryEmbedding = await ai.embed(queryText);
+      queryEmbeddings.set(queryText, queryEmbedding);
+    }
+    const selected = slices
+      .map((slice) => {
+        const haystack = `${slice.summary} ${slice.tags.join(" ")}`.toLowerCase();
+        const keywords = shot.materialQuery.toLowerCase().split(/\s+/).filter(Boolean);
+        const lexical = keywords.reduce((score, keyword) => score + (haystack.includes(keyword) ? 1 : 0), 0);
+        const similarity = cosineSimilarity(queryEmbedding, vectorFromJson(slice.embedding));
+        return { slice, score: lexical * 2 + similarity };
+      })
+      .sort((a, b) => b.score - a.score)[0]?.slice;
     await prisma.storyboardShot.update({
       where: { id: shot.id },
       data: { selectedSliceId: selected?.id ?? null }
     });
+    const selectedAsset = selected ? assetsById.get(selected.assetId) : undefined;
     const generated = await ai.generateShotVideo({
       shot,
       aspectRatio: data.aspectRatio,
       productTitle: product.title,
       imageUrl: assets[0]?.url
     });
+    await prisma.storyboardShot.update({
+      where: { id: shot.id },
+      data: { generatedUrl: generated.url ?? null }
+    });
+    if (generated.url) {
+      renderMaterials.push({
+        shotOrder: shot.order,
+        url: generated.url,
+        kind: "remote-video"
+      });
+    } else if (selectedAsset?.url) {
+      renderMaterials.push({
+        shotOrder: shot.order,
+        url: selectedAsset.url,
+        kind: inferMaterialKind(selectedAsset.url),
+        startMs: selected?.startMs,
+        endMs: selected?.endMs
+      });
+    }
     await appendTrace(data.jobId, "shot", `Shot ${shot.order + 1} generated via ${generated.provider}.`, {
       note: generated.note,
+      status: generated.status,
       selectedSliceId: selected?.id
     });
   }
@@ -65,6 +131,7 @@ export const processVideoGeneration = async (data: {
     scriptTitle: script.title,
     shots: script.shots,
     aspectRatio: data.aspectRatio,
+    materials: renderMaterials,
     outputDir: path.resolve(config.WORKER_OUTPUT_DIR)
   });
   const fileUrl = localPublicUrl(renderOutput.filePath);
@@ -79,7 +146,8 @@ export const processVideoGeneration = async (data: {
       coverUrl,
       config: {
         renderer: "ffmpeg",
-        source: "storyboard-mock-composite"
+        source: renderMaterials.length > 0 ? "material-aware-mix" : "storyboard-fallback-composite",
+        materialCount: renderMaterials.length
       }
     }
   });

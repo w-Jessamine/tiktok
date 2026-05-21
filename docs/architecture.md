@@ -35,7 +35,11 @@ flowchart LR
 
 ## Data Flow
 
-Material enters through the upload endpoint, is stored in S3-compatible storage, then analyzed into `Asset` and `AssetSlice` records. Scripts consume product data and retrieved material hints. Video creation maps each storyboard shot to a slice, attempts model generation, then renders a stable FFmpeg export.
+Material enters through the upload endpoint, is stored in S3-compatible storage, then analyzed into `Asset` and `AssetSlice` records. Scripts consume product data and retrieved material hints. Video creation maps each storyboard shot to a slice using lexical plus embedding similarity, attempts Ark async video generation, then renders a stable FFmpeg export. If Ark returns a video URL, that clip is used; otherwise uploaded merchant material is mixed by shot; if no usable media exists, the renderer falls back to a storyboard composite.
+
+## Data Backflow
+
+The analytics API accepts factor metric observations such as impressions, clicks, conversions and GMV. The dashboard aggregates those rows by creative factor and falls back to seeded demo data when no observations exist.
 
 ## Deployment
 

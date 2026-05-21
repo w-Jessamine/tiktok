@@ -83,9 +83,12 @@ export type VideoExportDto = {
 export type AnalyticsFactor = {
   factor: string;
   impressions: number;
+  clicks: number;
+  conversions: number;
   ctr: number;
   cvr: number;
   gmv: number;
+  sources?: string[];
 };
 
 export const api = {
@@ -146,5 +149,16 @@ export const api = {
   job: (id: string) => requestJson<GenerationJobDto>(`/api/jobs/${id}`),
   retryJob: (id: string) =>
     requestJson<GenerationJobDto>(`/api/jobs/${id}/retry`, { method: "POST", body: JSON.stringify({}) }),
-  analytics: () => requestJson<AnalyticsFactor[]>("/api/analytics/factors")
+  analytics: () => requestJson<AnalyticsFactor[]>("/api/analytics/factors"),
+  createMetric: (input: {
+    productId?: string;
+    scriptId?: string;
+    exportId?: string;
+    factor: string;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    gmvCents: number;
+    source?: string;
+  }) => requestJson("/api/analytics/factors", { method: "POST", body: JSON.stringify(input) })
 };

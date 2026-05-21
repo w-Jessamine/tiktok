@@ -1,18 +1,18 @@
 # TikTok Shop VideoPilot
 
-电商场景 AIGC 带货视频生成系统 MVP。项目面向 TikTok Shop 国际电商商家，覆盖素材入库、结构化理解、剧本生成、分镜编辑、一键成片、任务追踪、预览导出和 mock 转化看板。
+AIGC ecommerce product video generation MVP for TikTok Shop sellers. The project covers product material intake, structured asset analysis, script generation, storyboard editing, one-click video creation, task tracing, preview/export, and factor-level data backflow.
 
 ## Core Value
 
-商家只需要提供商品信息和素材，就能快速得到可预览、可导出的 15 秒以内带货短视频，并能在分镜级别调整素材、字幕、Prompt 和创作因子。
+Turn merchant product information and owned/licensed materials into short shoppable videos under 15 seconds, while keeping the workflow explainable, retryable, and stable through hybrid real-model plus fallback execution.
 
 ## Tech Stack
 
 - Frontend: React, Vite, TypeScript, Tailwind CSS, TanStack Query, Zustand, dnd-kit, ECharts
 - Backend: Node.js, TypeScript, Fastify, Prisma, BullMQ
 - Data: PostgreSQL, pgvector-ready schema, Redis, S3-compatible object storage
-- AI: Volcengine Ark-compatible provider, OpenAI SDK compatible client, Mock provider fallback
-- Video: FFmpeg renderer for preview/export
+- AI: Volcengine Ark-compatible provider, OpenAI SDK compatible client, Hybrid/Mock fallback
+- Video: FFmpeg material-aware renderer for preview/export
 - Quality: ESLint, Prettier, StyleLint, Vitest, Playwright-ready E2E, GitHub Actions
 
 ## Security
@@ -35,7 +35,14 @@ pnpm --filter @videopilot/web dev
 
 Open `http://localhost:5173`.
 
-If pnpm is not installed globally, `corepack enable` will activate the package manager declared in `package.json`.
+On Windows PowerShell environments that block `.ps1` shims, use:
+
+```bash
+npm.cmd exec --yes pnpm@9.12.3 -- install
+npm.cmd exec --yes pnpm@9.12.3 -- prisma:generate
+npm.cmd exec --yes pnpm@9.12.3 -- prisma:push
+npm.cmd exec --yes pnpm@9.12.3 -- --filter @videopilot/api dev
+```
 
 ## Useful Commands
 
@@ -58,6 +65,8 @@ ARK_API_KEY=
 ARK_TEXT_MODEL=
 ARK_VIDEO_MODEL=
 ARK_EMBEDDING_MODEL=
+ARK_VIDEO_MAX_POLLS=12
+ARK_VIDEO_POLL_INTERVAL_MS=5000
 DATABASE_URL=postgresql://videopilot:videopilot@localhost:5432/videopilot?schema=public
 REDIS_URL=redis://localhost:6379
 S3_ENDPOINT=http://localhost:9000
@@ -66,28 +75,29 @@ S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
 ```
 
-`AI_PROVIDER=hybrid` first tries the Ark provider when secrets and models are configured, then falls back to mock generation so demos remain stable.
+`AI_PROVIDER=hybrid` first tries Ark when secrets and models are configured, then falls back to mock generation so demos remain stable.
 
 ## User Flow
 
 1. Create a product brief with title, category, selling points, audience and usage scenario.
 2. Upload product images, product videos or reference material with a source statement.
-3. Worker analyzes assets into product tags, summaries and slice-level recall units.
+3. Worker analyzes assets into product tags, summaries, embeddings and slice-level recall units.
 4. Generate three conversion-oriented scripts from product data and optional Prompt guidance.
 5. Edit storyboard shots: reorder, change duration, adjust subtitles, update material queries or regenerate one shot.
 6. Run one-click video creation in vertical 9:16 or horizontal 16:9.
-7. Watch job progress and trace events, then preview/download the exported MP4.
-8. Review the mock factor attribution board for growth-oriented storytelling.
+7. Worker tries Ark async video generation, then falls back to uploaded material mixing or storyboard composite rendering.
+8. Watch job progress and trace events, then preview/download the exported MP4.
+9. Feed metric observations into the analytics board to show factor-level data backflow.
 
 ## Repository Layout
 
 ```text
-apps/web       React merchant workspace
-apps/api       Fastify REST API and SSE job status endpoints
-apps/worker    BullMQ processors for asset analysis and video creation
+apps/web        React merchant workspace
+apps/api        Fastify REST API and SSE job status endpoints
+apps/worker     BullMQ processors for asset analysis and video creation
 packages/shared Zod schemas, DTOs and shared types
-packages/ai    Ark, Hybrid and Mock AI providers
-packages/video FFmpeg storyboard renderer
+packages/ai     Ark, Hybrid and Mock AI providers
+packages/video  FFmpeg material-aware renderer
 prisma          Data model
 docs            Architecture, API and submission materials
 ```
@@ -105,18 +115,17 @@ P0:
 
 P1:
 
-- Tag/slice search
+- Tag/slice search with lexical plus embedding scoring
 - Shot-level editing
-- Provider fallback
-- Generation trace
-- Mock analytics board
+- Ark provider plus fallback
+- Material-aware FFmpeg mixing
+- Generation trace and retry
+- Factor metric backflow board
 - Docker and CI scaffolding
 
-P2 documented for future work:
+P2 documented or partially scaffolded:
 
-- Real factor attribution
+- Real ad-platform attribution import
 - A/B creative experiments
 - Compliance review workflow
-- Full Ark video task polling
 - Production observability
-

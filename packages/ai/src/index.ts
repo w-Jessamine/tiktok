@@ -38,7 +38,9 @@ export type VideoGenerationOutput = {
   provider: "ark" | "mock";
   url?: string;
   taskId?: string;
+  status?: "submitted" | "succeeded" | "failed" | "fallback";
   note: string;
+  raw?: unknown;
 };
 
 export interface AiProvider {
@@ -62,6 +64,17 @@ const seededVector = (text: string, dimensions = 32) => {
     seed = (seed * 37 + index * 11) % 10007;
     return Number(((seed / 10007) * 2 - 1).toFixed(4));
   });
+};
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const normalizeEmbedding = (vector: number[], dimensions = 64) => {
+  if (!vector.length) {
+    return seededVector("empty", dimensions);
+  }
+  const padded = Array.from({ length: dimensions }, (_, index) => vector[index % vector.length] ?? 0);
+  const norm = Math.sqrt(padded.reduce((sum, value) => sum + value * value, 0)) || 1;
+  return padded.map((value) => Number((value / norm).toFixed(6)));
 };
 
 export class MockAiProvider implements AiProvider {
@@ -185,6 +198,7 @@ export class MockAiProvider implements AiProvider {
   async generateShotVideo(input: VideoGenerationInput): Promise<VideoGenerationOutput> {
     return {
       provider: "mock",
+      status: "fallback",
       note: `Mock clip generated for ${input.productTitle}: ${input.shot.visualPrompt}`
     };
   }
@@ -238,7 +252,7 @@ export class ArkAiProvider implements AiProvider {
       slices: parsed.slices?.length
         ? parsed.slices
         : [{ startMs: 0, endMs: 3000, summary: "Product hero slice.", tags: ["hero"] }],
-      embedding: await this.embed(text)
+      embedding: normalizeEmbedding(await this.embed(text))
     };
   }
 
@@ -278,31 +292,101 @@ export class ArkAiProvider implements AiProvider {
     if (!this.videoModel) {
       throw new Error("ARK_VIDEO_MODEL is required for video generation");
     }
-    const response = await this.client.chat.completions.create({
-      model: this.videoModel,
-      messages: [
-        {
-          role: "user",
-          content: `Create a short ecommerce video clip for ${input.productTitle}. Visual: ${input.shot.visualPrompt}. Aspect: ${input.aspectRatio}.`
-        }
-      ]
-    });
+
+    const task = await (this.client as any).post("/contents/generations/tasks", {
+      body: {
+        model: this.videoModel,
+        content: this.buildVideoContent(input),
+        duration: Math.max(2, Math.min(5, Math.round(input.shot.durationMs / 1000))),
+        ratio: input.aspectRatio === "HORIZONTAL_16_9" ? "16:9" : "9:16"
+      },
+      castTo: Object
+    } as any);
+    const taskId = this.extractTaskId(task);
+    if (!taskId) {
+      return {
+        provider: "ark",
+        status: "submitted",
+        note: "Ark video task was submitted but no task id was returned.",
+        raw: task
+      };
+    }
+
+    const maxPolls = Number(process.env.ARK_VIDEO_MAX_POLLS ?? 12);
+    const intervalMs = Number(process.env.ARK_VIDEO_POLL_INTERVAL_MS ?? 5000);
+    for (let attempt = 0; attempt < maxPolls; attempt += 1) {
+      await wait(intervalMs);
+      const result = await (this.client as any).get(`/contents/generations/tasks/${taskId}`, {
+        castTo: Object
+      } as any);
+      const status = this.extractTaskStatus(result);
+      const videoUrl = this.extractVideoUrl(result);
+      if (videoUrl) {
+        return {
+          provider: "ark",
+          status: "succeeded",
+          taskId,
+          url: videoUrl,
+          note: "Ark video task completed and returned a video URL.",
+          raw: result
+        };
+      }
+      if (status && ["failed", "cancelled", "canceled"].includes(status.toLowerCase())) {
+        return {
+          provider: "ark",
+          status: "failed",
+          taskId,
+          note: `Ark video task ended with status ${status}.`,
+          raw: result
+        };
+      }
+    }
+
     return {
       provider: "ark",
-      taskId: response.id,
-      note: "Ark video task submitted. Polling can be wired to the provider-specific video task API."
+      status: "submitted",
+      taskId,
+      note: "Ark video task is still processing; render will continue with local material-aware fallback."
     };
   }
 
   async embed(text: string): Promise<number[]> {
     if (!this.embeddingModel) {
-      return seededVector(text);
+      return normalizeEmbedding(seededVector(text));
     }
     const response = await this.client.embeddings.create({
       model: this.embeddingModel,
       input: text
     });
-    return response.data[0]?.embedding ?? seededVector(text);
+    return normalizeEmbedding(response.data[0]?.embedding ?? seededVector(text));
+  }
+
+  private buildVideoContent(input: VideoGenerationInput) {
+    const text = `${input.productTitle}. ${input.shot.visualPrompt}. ${input.shot.cameraMotion}. Subtitle: ${input.shot.subtitle}. Keep it ecommerce-safe and conversion-oriented.`;
+    if (input.imageUrl) {
+      return [
+        { type: "text", text },
+        { type: "image_url", image_url: { url: input.imageUrl } }
+      ];
+    }
+    return [{ type: "text", text }];
+  }
+
+  private extractTaskId(payload: unknown): string | undefined {
+    const value = payload as Record<string, unknown>;
+    return String(value.id ?? value.task_id ?? value.taskId ?? "").trim() || undefined;
+  }
+
+  private extractTaskStatus(payload: unknown): string | undefined {
+    const value = payload as Record<string, unknown>;
+    return String(value.status ?? value.state ?? "").trim() || undefined;
+  }
+
+  private extractVideoUrl(payload: unknown): string | undefined {
+    const value = payload as Record<string, unknown>;
+    const content = value.content as Record<string, unknown> | undefined;
+    const direct = value.video_url ?? value.videoUrl ?? content?.video_url ?? content?.videoUrl;
+    return typeof direct === "string" && direct ? direct : undefined;
   }
 }
 

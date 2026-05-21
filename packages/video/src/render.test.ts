@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDurationMs, getResolution } from "./index";
+import { buildMockRenderFilter, getDurationMs, getResolution } from "./index";
 
 describe("video helpers", () => {
   it("caps final duration at 15s", () => {
@@ -21,5 +21,24 @@ describe("video helpers", () => {
   it("maps aspect ratios to export resolutions", () => {
     expect(getResolution("VERTICAL_9_16")).toBe("720x1280");
     expect(getResolution("HORIZONTAL_16_9")).toBe("1280x720");
+  });
+
+  it("escapes storyboard text in fallback filters", () => {
+    const filter = buildMockRenderFilter(
+      [
+        {
+          order: 0,
+          durationMs: 2000,
+          visualPrompt: "hero: user's closeup",
+          cameraMotion: "push",
+          materialQuery: "hero",
+          subtitle: "It's ready: tap",
+          voiceover: "Tap",
+          bgmMood: "upbeat"
+        }
+      ],
+      "VERTICAL_9_16"
+    );
+    expect(filter).toContain("drawtext");
   });
 });

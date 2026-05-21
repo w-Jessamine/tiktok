@@ -10,7 +10,7 @@
 6. Edit a shot subtitle, duration and material query; drag one shot.
 7. Generate a vertical 9:16 video.
 8. Show task trace and preview/export result.
-9. Open analytics board and explain factor attribution mock value.
+9. Open analytics board, feed one manual metric row, and explain factor attribution backflow.
 
 ## Manual Acceptance Checklist
 
@@ -19,5 +19,5 @@
 - Scripts are generated without real model secrets when `AI_PROVIDER=hybrid`.
 - Storyboard editor saves changes.
 - Video generation job reaches completed when FFmpeg is installed.
-- Export duration is under 15 seconds.
+- Export duration is under 15 seconds and uses uploaded material when available.
 - No real secrets appear in source, README, docs or logs.

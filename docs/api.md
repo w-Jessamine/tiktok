@@ -103,4 +103,19 @@ Requeues a retryable job.
 
 `GET /api/analytics/factors`
 
-Returns mock factor attribution data for CTR, CVR and GMV visualization.
+Returns aggregated factor attribution data for CTR, CVR and GMV visualization. If no metric rows exist yet, the API returns seeded demo data.
+
+`POST /api/analytics/factors`
+
+Adds one metric observation for data backflow.
+
+```json
+{
+  "factor": "Creator proof",
+  "impressions": 8200,
+  "clicks": 640,
+  "conversions": 31,
+  "gmvCents": 860000,
+  "source": "manual-demo"
+}
+```
