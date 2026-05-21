@@ -1,4 +1,4 @@
-import { Prisma, type JobStatus } from "@prisma/client";
+import type { Prisma, JobStatus } from "@prisma/client";
 import { prisma } from "../db";
 
 export const appendTrace = async (
