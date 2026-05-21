@@ -1,11 +1,7 @@
 name: codeql
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-  schedule:
-    - cron: "24 3 * * 1"
+  workflow_dispatch:
 
 permissions:
   security-events: write
@@ -17,9 +13,11 @@ jobs:
   analyze:
     name: Analyze JavaScript and TypeScript
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
