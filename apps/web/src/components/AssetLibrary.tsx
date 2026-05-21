@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImageUp, Search, UploadCloud } from "lucide-react";
+import { Check, ImageUp, Search, UploadCloud } from "lucide-react";
 import { useMemo, useState } from "react";
 import { api, type ProductDto } from "../lib/api";
 import { useAppStore } from "../lib/store";
@@ -43,6 +43,23 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
       useAppStore.getState().setActiveJobId(result.job.id);
       useAppStore.getState().setView("jobs");
     }
+  });
+
+  const review = useMutation({
+    mutationFn: (assetId: string) =>
+      api.reviewCompliance({ objectType: "ASSET", objectId: assetId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assets"] })
+  });
+
+  const approve = useMutation({
+    mutationFn: async (assetId: string) => {
+      const result = await api.reviewCompliance({ objectType: "ASSET", objectId: assetId });
+      return api.decideCompliance(result.id, {
+        status: "APPROVED",
+        reviewerNote: "Merchant confirmed rights and product authenticity."
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assets"] })
   });
 
   return (
@@ -123,7 +140,15 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
                     {asset.videoSummary ?? "Waiting for multimodal analysis."}
                   </p>
                 </div>
-                <StatusPill tone={asset.complianceStatus === "APPROVED" ? "good" : "warn"}>
+                <StatusPill
+                  tone={
+                    asset.complianceStatus === "APPROVED"
+                      ? "good"
+                      : asset.complianceStatus === "REJECTED"
+                        ? "bad"
+                        : "warn"
+                  }
+                >
                   {asset.complianceStatus}
                 </StatusPill>
               </div>
@@ -135,10 +160,36 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
               <div className="grid gap-2 sm:grid-cols-3">
                 {asset.slices?.map((slice) => (
                   <div key={slice.id} className="rounded-md bg-mist p-3 text-sm">
+                    {slice.thumbnailUrl && (
+                      <img
+                        src={slice.thumbnailUrl}
+                        alt=""
+                        className="mb-2 aspect-video w-full rounded object-cover"
+                      />
+                    )}
                     <strong>{Math.round((slice.endMs - slice.startMs) / 1000)}s slice</strong>
                     <p className="mt-1 text-ink/65">{slice.summary}</p>
                   </div>
                 ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={review.isPending}
+                  onClick={() => review.mutate(asset.id)}
+                >
+                  Review compliance
+                </Button>
+                {asset.complianceStatus !== "APPROVED" && (
+                  <Button
+                    variant="ghost"
+                    disabled={approve.isPending}
+                    onClick={() => approve.mutate(asset.id)}
+                  >
+                    <Check className="h-4 w-4" />
+                    Manual approve
+                  </Button>
+                )}
               </div>
             </article>
           ))}

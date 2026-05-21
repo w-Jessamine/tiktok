@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import OpenAI from "openai";
 import {
   type ProductCreateInput,
@@ -38,10 +40,71 @@ export type VideoGenerationOutput = {
   provider: "ark" | "mock";
   url?: string;
   taskId?: string;
-  status?: "submitted" | "succeeded" | "failed" | "fallback";
+  status?: ArkVideoTaskStatus | "fallback";
   note: string;
   raw?: unknown;
+  debugSample?: ArkVideoDebugSample;
 };
+
+export type ArkVideoTaskStatus =
+  | "submitted"
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "review_failed"
+  | "unknown";
+
+export type ArkVideoArtifact = {
+  url: string;
+  kind: "video" | "cover" | "unknown";
+  path: string;
+};
+
+export type ArkVideoTaskCreateResult = {
+  taskId?: string;
+  status: ArkVideoTaskStatus;
+  artifacts: ArkVideoArtifact[];
+  errorCode?: string;
+  message?: string;
+  debugSample?: ArkVideoDebugSample;
+};
+
+export type ArkVideoTaskPollResult = ArkVideoTaskCreateResult;
+
+export type ArkVideoDebugSample = {
+  capturedAt: string;
+  topLevelKeys: string[];
+  statusPaths: string[];
+  idPaths: string[];
+  urlPaths: string[];
+  errorPaths: string[];
+};
+
+export type AudioSynthesisInput = {
+  text: string;
+  language: string;
+  mood?: string;
+  durationMs: number;
+  outputDir: string;
+};
+
+export type AudioSynthesisOutput = {
+  provider: "mock" | "ark" | "local";
+  filePath: string;
+  durationMs: number;
+  status: "ready" | "fallback";
+  note: string;
+};
+
+export interface TtsProvider {
+  synthesize(input: AudioSynthesisInput): Promise<AudioSynthesisOutput>;
+}
+
+export interface BgmProvider {
+  createBed(input: Omit<AudioSynthesisInput, "text">): Promise<AudioSynthesisOutput>;
+}
 
 export interface AiProvider {
   analyzeAsset(input: AssetAnalysisInput): Promise<AssetAnalysis>;
@@ -78,6 +141,65 @@ const normalizeEmbedding = (vector: number[], dimensions = 64) => {
   );
   const norm = Math.sqrt(padded.reduce((sum, value) => sum + value * value, 0)) || 1;
   return padded.map((value) => Number((value / norm).toFixed(6)));
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === "object" && !Array.isArray(value));
+
+const redactPayloadShape = (payload: unknown): ArkVideoDebugSample => {
+  const topLevelKeys = isRecord(payload) ? Object.keys(payload).sort() : [];
+  const statusPaths: string[] = [];
+  const idPaths: string[] = [];
+  const urlPaths: string[] = [];
+  const errorPaths: string[] = [];
+
+  const walk = (value: unknown, currentPath: string, depth: number) => {
+    if (depth > 5 || !isRecord(value)) {
+      return;
+    }
+    for (const [key, nested] of Object.entries(value)) {
+      const nextPath = currentPath ? `${currentPath}.${key}` : key;
+      const lower = key.toLowerCase();
+      if (["status", "state", "phase"].includes(lower)) {
+        statusPaths.push(nextPath);
+      }
+      if (["id", "task_id", "taskid", "taskId"].map(String).includes(key)) {
+        idPaths.push(nextPath);
+      }
+      if (lower.includes("url")) {
+        urlPaths.push(nextPath);
+      }
+      if (lower.includes("error") || lower.includes("code") || lower.includes("message")) {
+        errorPaths.push(nextPath);
+      }
+      if (Array.isArray(nested)) {
+        nested.slice(0, 3).forEach((item, index) => walk(item, `${nextPath}[${index}]`, depth + 1));
+      } else {
+        walk(nested, nextPath, depth + 1);
+      }
+    }
+  };
+
+  walk(payload, "", 0);
+  return {
+    capturedAt: new Date().toISOString(),
+    topLevelKeys,
+    statusPaths: [...new Set(statusPaths)].sort(),
+    idPaths: [...new Set(idPaths)].sort(),
+    urlPaths: [...new Set(urlPaths)].sort(),
+    errorPaths: [...new Set(errorPaths)].sort()
+  };
+};
+
+export const writeArkVideoDebugSample = async (
+  payload: unknown,
+  outputDir = path.resolve(process.cwd(), "storage", "ark-debug")
+) => {
+  const sample = redactPayloadShape(payload);
+  await mkdir(outputDir, { recursive: true });
+  const filePath = path.join(outputDir, `${Date.now()}-ark-video-shape.json`);
+  await writeFile(filePath, JSON.stringify(sample, null, 2));
+  return { filePath, sample };
 };
 
 export class MockAiProvider implements AiProvider {
@@ -310,13 +432,15 @@ export class ArkAiProvider implements AiProvider {
       },
       castTo: Object
     } as any);
-    const taskId = this.extractTaskId(task);
+    const createResult = await this.parseArkVideoTask(task);
+    const taskId = createResult.taskId;
     if (!taskId) {
       return {
         provider: "ark",
-        status: "submitted",
+        status: createResult.status,
         note: "Ark video task was submitted but no task id was returned.",
-        raw: task
+        raw: task,
+        debugSample: createResult.debugSample
       };
     }
 
@@ -327,25 +451,27 @@ export class ArkAiProvider implements AiProvider {
       const result = await (this.client as any).get(`/contents/generations/tasks/${taskId}`, {
         castTo: Object
       } as any);
-      const status = this.extractTaskStatus(result);
-      const videoUrl = this.extractVideoUrl(result);
-      if (videoUrl) {
+      const pollResult = await this.parseArkVideoTask(result);
+      const videoArtifact = pollResult.artifacts.find((artifact) => artifact.kind === "video");
+      if (videoArtifact?.url) {
         return {
           provider: "ark",
           status: "succeeded",
           taskId,
-          url: videoUrl,
+          url: videoArtifact.url,
           note: "Ark video task completed and returned a video URL.",
-          raw: result
+          raw: result,
+          debugSample: pollResult.debugSample
         };
       }
-      if (status && ["failed", "cancelled", "canceled"].includes(status.toLowerCase())) {
+      if (["failed", "cancelled", "review_failed"].includes(pollResult.status)) {
         return {
           provider: "ark",
-          status: "failed",
+          status: pollResult.status,
           taskId,
-          note: `Ark video task ended with status ${status}.`,
-          raw: result
+          note: pollResult.message ?? `Ark video task ended with status ${pollResult.status}.`,
+          raw: result,
+          debugSample: pollResult.debugSample
         };
       }
     }
@@ -380,21 +506,157 @@ export class ArkAiProvider implements AiProvider {
     return [{ type: "text", text }];
   }
 
-  private extractTaskId(payload: unknown): string | undefined {
-    const value = payload as Record<string, unknown>;
-    return String(value.id ?? value.task_id ?? value.taskId ?? "").trim() || undefined;
+  private async parseArkVideoTask(payload: unknown): Promise<ArkVideoTaskPollResult> {
+    const debugSample =
+      process.env.ARK_VIDEO_DEBUG_SAMPLE === "true"
+        ? (await writeArkVideoDebugSample(payload)).sample
+        : redactPayloadShape(payload);
+    const taskId = this.extractTaskId(payload);
+    const status = this.normalizeTaskStatus(this.extractTaskStatus(payload));
+    const artifacts = this.extractVideoArtifacts(payload);
+    const { errorCode, message } = this.extractTaskError(payload);
+    return { taskId, status, artifacts, errorCode, message, debugSample };
   }
 
   private extractTaskStatus(payload: unknown): string | undefined {
-    const value = payload as Record<string, unknown>;
-    return String(value.status ?? value.state ?? "").trim() || undefined;
+    return this.findFirstString(payload, ["status", "state", "phase"]);
   }
 
-  private extractVideoUrl(payload: unknown): string | undefined {
-    const value = payload as Record<string, unknown>;
-    const content = value.content as Record<string, unknown> | undefined;
-    const direct = value.video_url ?? value.videoUrl ?? content?.video_url ?? content?.videoUrl;
-    return typeof direct === "string" && direct ? direct : undefined;
+  private extractTaskId(payload: unknown): string | undefined {
+    return this.findFirstString(payload, ["id", "task_id", "taskId", "taskID"]);
+  }
+
+  private extractVideoArtifacts(payload: unknown): ArkVideoArtifact[] {
+    const artifacts: ArkVideoArtifact[] = [];
+    const visit = (value: unknown, currentPath: string, depth: number) => {
+      if (depth > 6) {
+        return;
+      }
+      if (typeof value === "string" && /^https?:\/\//i.test(value)) {
+        const lowerPath = currentPath.toLowerCase();
+        const lowerValue = value.toLowerCase();
+        if (/\.(mp4|mov|webm)(\?|$)/i.test(lowerValue) || lowerPath.includes("video")) {
+          artifacts.push({ url: value, kind: "video", path: currentPath });
+        } else if (lowerPath.includes("cover") || lowerPath.includes("poster")) {
+          artifacts.push({ url: value, kind: "cover", path: currentPath });
+        } else {
+          artifacts.push({ url: value, kind: "unknown", path: currentPath });
+        }
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => visit(item, `${currentPath}[${index}]`, depth + 1));
+        return;
+      }
+      if (isRecord(value)) {
+        for (const [key, nested] of Object.entries(value)) {
+          visit(nested, currentPath ? `${currentPath}.${key}` : key, depth + 1);
+        }
+      }
+    };
+    visit(payload, "", 0);
+    const unique = new Map(artifacts.map((artifact) => [artifact.url, artifact]));
+    return [...unique.values()].sort((a, b) =>
+      a.kind === "video" ? -1 : b.kind === "video" ? 1 : 0
+    );
+  }
+
+  private extractTaskError(payload: unknown): { errorCode?: string; message?: string } {
+    return {
+      errorCode: this.findFirstString(payload, ["error_code", "errorCode", "code"]),
+      message: this.findFirstString(payload, ["message", "error", "reason"])
+    };
+  }
+
+  private findFirstString(payload: unknown, keys: string[]): string | undefined {
+    const queue: unknown[] = [payload];
+    const seen = new Set<unknown>();
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!isRecord(current) || seen.has(current)) {
+        continue;
+      }
+      seen.add(current);
+      for (const key of keys) {
+        const value = current[key];
+        if (typeof value === "string" && value.trim()) {
+          return value.trim();
+        }
+        if (typeof value === "number") {
+          return String(value);
+        }
+      }
+      for (const value of Object.values(current)) {
+        if (isRecord(value) || Array.isArray(value)) {
+          queue.push(value);
+        }
+      }
+      for (const value of Object.values(current)) {
+        if (Array.isArray(value)) {
+          value.forEach((item) => queue.push(item));
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private normalizeTaskStatus(status?: string): ArkVideoTaskStatus {
+    const normalized = (status ?? "submitted").toLowerCase().replace(/[\s-]/g, "_");
+    if (["success", "succeeded", "completed", "done"].includes(normalized)) {
+      return "succeeded";
+    }
+    if (["fail", "failed", "error"].includes(normalized)) {
+      return "failed";
+    }
+    if (["content_review_failed", "review_failed", "audit_failed"].includes(normalized)) {
+      return "review_failed";
+    }
+    if (["cancel", "cancelled", "canceled"].includes(normalized)) {
+      return "cancelled";
+    }
+    if (["running", "processing", "generating"].includes(normalized)) {
+      return "running";
+    }
+    if (["queued", "pending", "created"].includes(normalized)) {
+      return "queued";
+    }
+    if (normalized === "submitted") {
+      return "submitted";
+    }
+    return "unknown";
+  }
+}
+
+export class MockTtsProvider implements TtsProvider {
+  async synthesize(input: AudioSynthesisInput): Promise<AudioSynthesisOutput> {
+    await mkdir(input.outputDir, { recursive: true });
+    const filePath = path.join(
+      input.outputDir,
+      `tts-${Date.now()}-${seededVector(input.text, 1)[0]}.wav`
+    );
+    await writeFile(filePath, "");
+    return {
+      provider: "mock",
+      filePath,
+      durationMs: input.durationMs,
+      status: "fallback",
+      note: "Mock TTS placeholder requested; renderer will synthesize a local tone bed."
+    };
+  }
+}
+
+export class MockBgmProvider implements BgmProvider {
+  async createBed(input: Omit<AudioSynthesisInput, "text">): Promise<AudioSynthesisOutput> {
+    await mkdir(input.outputDir, { recursive: true });
+    const filePath = path.join(input.outputDir, `bgm-${Date.now()}-${input.mood ?? "mood"}.wav`);
+    await writeFile(filePath, "");
+    return {
+      provider: "mock",
+      filePath,
+      durationMs: input.durationMs,
+      status: "fallback",
+      note: "Mock BGM placeholder requested; renderer will synthesize a local music bed."
+    };
   }
 }
 
@@ -456,4 +718,14 @@ export const createAiProvider = (env: NodeJS.ProcessEnv = process.env): AiProvid
   } catch {
     return new MockAiProvider();
   }
+};
+
+export const createTtsProvider = (env: NodeJS.ProcessEnv = process.env): TtsProvider => {
+  void env;
+  return new MockTtsProvider();
+};
+
+export const createBgmProvider = (env: NodeJS.ProcessEnv = process.env): BgmProvider => {
+  void env;
+  return new MockBgmProvider();
 };

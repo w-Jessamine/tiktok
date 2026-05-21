@@ -3,6 +3,7 @@ import { assetTypeSchema } from "@videopilot/shared";
 import { createAiProvider } from "@videopilot/ai";
 import { prisma } from "../db/prisma";
 import { enqueueGenerationJob } from "../services/queue";
+import { runComplianceReview } from "../services/compliance";
 import { putObject } from "../services/storage";
 
 const ai = createAiProvider();
@@ -66,6 +67,7 @@ export const registerAssetRoutes = async (app: FastifyInstance) => {
         }
       }
     });
+    await runComplianceReview({ objectType: "ASSET", objectId: asset.id });
 
     const job = await prisma.generationJob.create({
       data: {

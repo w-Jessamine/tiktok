@@ -7,6 +7,8 @@ import { randomUUID } from "node:crypto";
 import { config } from "./config";
 import { registerAnalyticsRoutes } from "./routes/analytics";
 import { registerAssetRoutes } from "./routes/assets";
+import { registerAudioRoutes } from "./routes/audio";
+import { registerComplianceRoutes } from "./routes/compliance";
 import { registerJobRoutes } from "./routes/jobs";
 import { registerProductRoutes } from "./routes/products";
 import { registerScriptRoutes } from "./routes/scripts";
@@ -38,6 +40,8 @@ export const buildApp = async () => {
   await registerAssetRoutes(app);
   await registerScriptRoutes(app);
   await registerVideoRoutes(app);
+  await registerAudioRoutes(app);
+  await registerComplianceRoutes(app);
   await registerJobRoutes(app);
   await registerAnalyticsRoutes(app);
 

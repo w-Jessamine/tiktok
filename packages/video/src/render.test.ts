@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildMockRenderFilter, getDurationMs, getResolution } from "./index";
+import {
+  buildMockRenderFilter,
+  generateVideoThumbnail,
+  getDurationMs,
+  getResolution
+} from "./index";
 
 describe("video helpers", () => {
   it("caps final duration at 15s", () => {
@@ -40,5 +45,9 @@ describe("video helpers", () => {
       "VERTICAL_9_16"
     );
     expect(filter).toContain("drawtext");
+  });
+
+  it("exports thumbnail helper as part of the video toolkit", () => {
+    expect(typeof generateVideoThumbnail).toBe("function");
   });
 });

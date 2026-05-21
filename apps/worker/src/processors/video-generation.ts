@@ -1,5 +1,5 @@
 import path from "node:path";
-import { createAiProvider } from "@videopilot/ai";
+import { createAiProvider, createBgmProvider, createTtsProvider } from "@videopilot/ai";
 import { renderStoryboardVideo, type RenderMaterial } from "@videopilot/video";
 import type { VideoAspectRatio } from "@videopilot/shared";
 import { config } from "../config";
@@ -7,6 +7,8 @@ import { prisma } from "../db";
 import { appendTrace, updateJob } from "../services/job-trace";
 
 const ai = createAiProvider();
+const tts = createTtsProvider();
+const bgm = createBgmProvider();
 
 const cosineSimilarity = (a: number[], b: number[]) => {
   const length = Math.min(a.length, b.length);
@@ -52,6 +54,12 @@ export const processVideoGeneration = async (data: {
   productId: string;
   scriptId: string;
   aspectRatio: VideoAspectRatio;
+  voiceEnabled?: boolean;
+  bgmEnabled?: boolean;
+  voiceLocale?: string;
+  bgmMood?: string;
+  audioMix?: { voiceVolume?: number; bgmVolume?: number };
+  variantId?: string;
 }) => {
   await updateJob(data.jobId, { status: "RUNNING", progress: 10 });
   const product = await prisma.product.findUniqueOrThrow({ where: { id: data.productId } });
@@ -70,6 +78,8 @@ export const processVideoGeneration = async (data: {
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
   const queryEmbeddings = new Map<string, number[]>();
   const renderMaterials: RenderMaterial[] = [];
+  const audioOutputDir = path.resolve(config.WORKER_OUTPUT_DIR, "audio", data.jobId);
+  const voicePaths: string[] = [];
 
   await updateJob(data.jobId, { progress: 25 });
   for (const shot of script.shots) {
@@ -133,6 +143,77 @@ export const processVideoGeneration = async (data: {
     );
   }
 
+  if (data.voiceEnabled) {
+    await appendTrace(data.jobId, "audio", "Synthesizing per-shot TTS placeholders.");
+    for (const shot of script.shots) {
+      try {
+        const voice = await tts.synthesize({
+          text: shot.voiceover,
+          language: data.voiceLocale ?? product.language,
+          mood: shot.bgmMood,
+          durationMs: shot.durationMs,
+          outputDir: audioOutputDir
+        });
+        voicePaths.push(voice.filePath);
+        await prisma.audioAsset.create({
+          data: {
+            type: "TTS",
+            language: data.voiceLocale ?? product.language,
+            mood: shot.bgmMood,
+            durationMs: shot.durationMs,
+            fileUrl: localPublicUrl(voice.filePath),
+            provider: voice.provider,
+            status: voice.status === "ready" ? "READY" : "FALLBACK",
+            metadata: { note: voice.note, shotOrder: shot.order }
+          }
+        });
+      } catch (error) {
+        await appendTrace(
+          data.jobId,
+          "audio",
+          "TTS failed; render will continue with fallback tone.",
+          {
+            message: error instanceof Error ? error.message : "unknown"
+          }
+        );
+      }
+    }
+  }
+
+  let bgmPath: string | undefined;
+  if (data.bgmEnabled) {
+    try {
+      const bgmAsset = await bgm.createBed({
+        language: product.language,
+        mood: data.bgmMood ?? script.shots[0]?.bgmMood ?? "upbeat",
+        durationMs: script.shots.reduce((sum, shot) => sum + shot.durationMs, 0),
+        outputDir: audioOutputDir
+      });
+      bgmPath = bgmAsset.filePath;
+      await prisma.audioAsset.create({
+        data: {
+          type: "BGM",
+          language: product.language,
+          mood: data.bgmMood ?? "upbeat",
+          durationMs: bgmAsset.durationMs,
+          fileUrl: localPublicUrl(bgmAsset.filePath),
+          provider: bgmAsset.provider,
+          status: bgmAsset.status === "ready" ? "READY" : "FALLBACK",
+          metadata: { note: bgmAsset.note }
+        }
+      });
+    } catch (error) {
+      await appendTrace(
+        data.jobId,
+        "audio",
+        "BGM generation failed; render will continue silently.",
+        {
+          message: error instanceof Error ? error.message : "unknown"
+        }
+      );
+    }
+  }
+
   await updateJob(data.jobId, { progress: 70 });
   await appendTrace(
     data.jobId,
@@ -144,6 +225,16 @@ export const processVideoGeneration = async (data: {
     shots: script.shots,
     aspectRatio: data.aspectRatio,
     materials: renderMaterials,
+    audio: {
+      voiceEnabled: data.voiceEnabled,
+      bgmEnabled: data.bgmEnabled,
+      voiceLocale: data.voiceLocale ?? product.language,
+      bgmMood: data.bgmMood,
+      voicePaths,
+      bgmPath,
+      voiceVolume: data.audioMix?.voiceVolume,
+      bgmVolume: data.audioMix?.bgmVolume
+    },
     outputDir: path.resolve(config.WORKER_OUTPUT_DIR)
   });
   const fileUrl = localPublicUrl(renderOutput.filePath);
@@ -156,13 +247,35 @@ export const processVideoGeneration = async (data: {
       durationMs: renderOutput.durationMs,
       fileUrl,
       coverUrl,
+      variantId: data.variantId,
       config: {
         renderer: "ffmpeg",
         source: renderMaterials.length > 0 ? "material-aware-mix" : "storyboard-fallback-composite",
-        materialCount: renderMaterials.length
+        materialCount: renderMaterials.length,
+        audio: {
+          voiceEnabled: Boolean(data.voiceEnabled),
+          bgmEnabled: Boolean(data.bgmEnabled),
+          voiceCount: voicePaths.length,
+          hasBgm: Boolean(bgmPath)
+        }
       }
     }
   });
+  if (data.variantId) {
+    await prisma.videoVariant.update({
+      where: { id: data.variantId },
+      data: {
+        exportId: exportRow.id,
+        metricSummary: {
+          source: "mock-estimate",
+          impressions: 10000,
+          clicks: 620,
+          conversions: 32,
+          gmv: 1480
+        }
+      }
+    });
+  }
   await appendTrace(data.jobId, "export", "Video export is ready for preview and download.", {
     fileUrl,
     durationMs: renderOutput.durationMs

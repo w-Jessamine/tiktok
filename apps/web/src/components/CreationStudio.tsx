@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Film, Play } from "lucide-react";
+import { Download, Film, FlaskConical, Play, Volume2 } from "lucide-react";
 import { useState } from "react";
 import { api, type ProductDto } from "../lib/api";
 import { useAppStore } from "../lib/store";
@@ -13,6 +13,9 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
   const [aspectRatio, setAspectRatio] = useState<"VERTICAL_9_16" | "HORIZONTAL_16_9">(
     "VERTICAL_9_16"
   );
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [bgmEnabled, setBgmEnabled] = useState(true);
+  const [experimentId, setExperimentId] = useState<string | null>(null);
   const scriptsQuery = useQuery({
     queryKey: ["scripts", selectedProductId],
     queryFn: () => api.scripts(selectedProductId),
@@ -31,12 +34,43 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
         productId: selectedProductId!,
         scriptId: selectedScriptId!,
         aspectRatio,
-        resolution: aspectRatio === "VERTICAL_9_16" ? "720x1280" : "1280x720"
+        resolution: aspectRatio === "VERTICAL_9_16" ? "720x1280" : "1280x720",
+        voiceEnabled,
+        bgmEnabled,
+        voiceLocale: "en-US",
+        bgmMood: "upbeat",
+        audioMix: { voiceVolume: 0.9, bgmVolume: 0.18 }
       }),
     onSuccess: (job) => {
       useAppStore.getState().setActiveJobId(job.id);
       useAppStore.getState().setView("jobs");
     }
+  });
+
+  const createExperiment = useMutation({
+    mutationFn: () =>
+      api.createExperiment({
+        productId: selectedProductId!,
+        goal: "Find the best conversion angle for a short TikTok Shop product video",
+        variantCount: 2,
+        aspectRatio,
+        voiceEnabled,
+        bgmEnabled
+      }),
+    onSuccess: (result) => {
+      setExperimentId(result.experiment.id);
+      const firstJobId = result.variants.find((variant) => variant.jobId)?.jobId;
+      if (firstJobId) {
+        useAppStore.getState().setActiveJobId(firstJobId);
+      }
+    }
+  });
+
+  const experimentQuery = useQuery({
+    queryKey: ["experiment", experimentId],
+    queryFn: () => api.experiment(experimentId!),
+    enabled: Boolean(experimentId),
+    refetchInterval: 3000
   });
 
   return (
@@ -81,6 +115,27 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
               <option value="HORIZONTAL_16_9">Horizontal 16:9 · 1280x720</option>
             </Select>
           </label>
+          <div className="grid gap-2 rounded-md bg-mist p-3">
+            <label className="flex items-center justify-between gap-3 text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <Volume2 className="h-4 w-4" />
+                TTS voiceover
+              </span>
+              <input
+                type="checkbox"
+                checked={voiceEnabled}
+                onChange={(event) => setVoiceEnabled(event.target.checked)}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm font-semibold">
+              BGM bed
+              <input
+                type="checkbox"
+                checked={bgmEnabled}
+                onChange={(event) => setBgmEnabled(event.target.checked)}
+              />
+            </label>
+          </div>
           <Button
             disabled={!selectedProductId || !selectedScriptId || generate.isPending}
             onClick={() => generate.mutate()}
@@ -88,11 +143,39 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
             <Play className="h-4 w-4" />
             {generate.isPending ? "Queuing..." : "Generate video"}
           </Button>
+          <Button
+            variant="secondary"
+            disabled={!selectedProductId || createExperiment.isPending}
+            onClick={() => createExperiment.mutate()}
+          >
+            <FlaskConical className="h-4 w-4" />
+            {createExperiment.isPending ? "Creating variants..." : "Generate A/B variants"}
+          </Button>
         </div>
       </Panel>
 
       <Panel title="Preview & Export">
         <div className="grid gap-4">
+          {experimentQuery.data?.variants.map((variant) => (
+            <article key={variant.id} className="rounded-md border border-ink/10 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <strong>{variant.name}</strong>
+                <div className="flex flex-wrap gap-2">
+                  {variant.generationJobs?.[0] && (
+                    <StatusPill>{variant.generationJobs[0].status}</StatusPill>
+                  )}
+                  <StatusPill tone="good">
+                    CTR {Number(variant.metricSummary.ctr ?? 0.06).toFixed(3)}
+                  </StatusPill>
+                </div>
+              </div>
+              <p className="text-sm text-ink/65">
+                {Object.entries(variant.factors)
+                  .map(([key, value]) => `${key}: ${String(value)}`)
+                  .join(" 路 ")}
+              </p>
+            </article>
+          ))}
           {exportsQuery.data?.map((item) => (
             <article
               key={item.id}

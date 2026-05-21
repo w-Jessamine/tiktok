@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { scriptGenerateSchema, scriptPatchSchema, type ScriptModel } from "@videopilot/shared";
 import { createAiProvider } from "@videopilot/ai";
 import { prisma } from "../db/prisma";
+import { runComplianceReview } from "../services/compliance";
 
 const ai = createAiProvider();
 
@@ -55,6 +56,9 @@ export const registerScriptRoutes = async (app: FastifyInstance) => {
       count: input.count
     });
     const created = await Promise.all(scripts.map((script) => persistScript(script)));
+    await Promise.all(
+      created.map((script) => runComplianceReview({ objectType: "SCRIPT", objectId: script.id }))
+    );
     return reply.send({ data: created, requestId: request.id });
   });
 

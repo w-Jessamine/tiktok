@@ -12,7 +12,8 @@ export type QueueJobName =
   | "asset-analysis"
   | "script-generation"
   | "video-generation"
-  | "shot-regeneration";
+  | "shot-regeneration"
+  | "experiment-generation";
 
 export const enqueueGenerationJob = async (name: QueueJobName, data: Record<string, unknown>) => {
   return generationQueue.add(name, data, {

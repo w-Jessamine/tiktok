@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execa } from "execa";
 import type { StoryboardShot, VideoAspectRatio } from "@videopilot/shared";
@@ -9,6 +9,7 @@ export type RenderInput = {
   aspectRatio: VideoAspectRatio;
   outputDir: string;
   materials?: RenderMaterial[];
+  audio?: RenderAudioInput;
 };
 
 export type RenderMaterial = {
@@ -24,6 +25,22 @@ export type RenderOutput = {
   coverPath: string;
   durationMs: number;
   resolution: string;
+};
+
+export type RenderAudioInput = {
+  voiceEnabled?: boolean;
+  bgmEnabled?: boolean;
+  voiceLocale?: string;
+  bgmMood?: string;
+  voiceVolume?: number;
+  bgmVolume?: number;
+  voicePaths?: string[];
+  bgmPath?: string;
+};
+
+export type ThumbnailOutput = {
+  filePath: string;
+  capturedAtMs: number;
 };
 
 export const getResolution = (aspectRatio: VideoAspectRatio) =>
@@ -70,6 +87,18 @@ const normalizeLocalUrl = (url: string) => {
     return path.resolve(process.cwd(), url.slice(1));
   }
   return path.resolve(process.cwd(), url);
+};
+
+const hasUsableAudioFile = async (filePath?: string) => {
+  if (!filePath) {
+    return false;
+  }
+  try {
+    const fileStat = await stat(filePath);
+    return fileStat.size > 44;
+  } catch {
+    return false;
+  }
 };
 
 const renderMaterialClip = async (input: {
@@ -152,6 +181,73 @@ const concatClips = async (clipPaths: string[], outputPath: string) => {
   ]);
 };
 
+const buildAudioInputs = async (input: {
+  audio?: RenderAudioInput;
+  durationMs: number;
+  outputDir: string;
+}) => {
+  if (!input.audio?.voiceEnabled && !input.audio?.bgmEnabled) {
+    return { args: [] as string[], filter: undefined as string | undefined };
+  }
+  const args: string[] = [];
+  const streams: string[] = [];
+  let nextIndex = 1;
+  const durationSeconds = Math.max(1, input.durationMs / 1000);
+
+  if (input.audio?.voiceEnabled) {
+    const existingVoicePaths = (input.audio.voicePaths ?? []).filter(Boolean);
+    if (existingVoicePaths.length && (await hasUsableAudioFile(existingVoicePaths[0]))) {
+      args.push("-i", existingVoicePaths[0]!);
+      streams.push(`[${nextIndex}:a]volume=${input.audio.voiceVolume ?? 0.9}[voice]`);
+      nextIndex += 1;
+    } else {
+      args.push(
+        "-f",
+        "lavfi",
+        "-t",
+        String(durationSeconds),
+        "-i",
+        "sine=frequency=440:sample_rate=44100"
+      );
+      streams.push(`[${nextIndex}:a]volume=${input.audio.voiceVolume ?? 0.25}[voice]`);
+      nextIndex += 1;
+    }
+  }
+
+  if (input.audio?.bgmEnabled) {
+    if (await hasUsableAudioFile(input.audio.bgmPath)) {
+      args.push("-stream_loop", "-1", "-i", input.audio.bgmPath!);
+      streams.push(`[${nextIndex}:a]volume=${input.audio.bgmVolume ?? 0.18}[bgm]`);
+      nextIndex += 1;
+    } else {
+      args.push(
+        "-f",
+        "lavfi",
+        "-t",
+        String(durationSeconds),
+        "-i",
+        "sine=frequency=176:sample_rate=44100"
+      );
+      streams.push(`[${nextIndex}:a]volume=${input.audio.bgmVolume ?? 0.12}[bgm]`);
+      nextIndex += 1;
+    }
+  }
+
+  if (!streams.length) {
+    return { args: [], filter: undefined };
+  }
+  const labels = streams
+    .map((stream) => {
+      const match = stream.match(/\[([^\]]+)\]$/);
+      return match ? `[${match[1]}]` : "";
+    })
+    .join("");
+  return {
+    args,
+    filter: `${streams.join(";")};${labels}amix=inputs=${streams.length}:duration=first:dropout_transition=0[aout]`
+  };
+};
+
 export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderOutput> => {
   await mkdir(input.outputDir, { recursive: true });
   const resolution = getResolution(input.aspectRatio);
@@ -201,6 +297,38 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
     ]);
   }
 
+  const audio = await buildAudioInputs({
+    audio: input.audio,
+    durationMs,
+    outputDir: input.outputDir
+  });
+  if (audio.filter) {
+    const audioOutputPath = outputPath.replace(/\.mp4$/, "-audio.mp4");
+    await execa("ffmpeg", [
+      "-y",
+      "-i",
+      outputPath,
+      ...audio.args,
+      "-filter_complex",
+      audio.filter,
+      "-map",
+      "0:v",
+      "-map",
+      "[aout]",
+      "-t",
+      String(durationMs / 1000),
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-shortest",
+      "-movflags",
+      "+faststart",
+      audioOutputPath
+    ]);
+    await rename(audioOutputPath, outputPath);
+  }
+
   await execa("ffmpeg", ["-y", "-i", outputPath, "-frames:v", "1", coverPath]);
 
   return {
@@ -209,4 +337,34 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
     durationMs,
     resolution
   };
+};
+
+export const generateVideoThumbnail = async (input: {
+  sourceUrl: string;
+  outputDir: string;
+  startMs?: number;
+  endMs?: number;
+  filenamePrefix?: string;
+}): Promise<ThumbnailOutput> => {
+  await mkdir(input.outputDir, { recursive: true });
+  const startMs = Math.max(0, input.startMs ?? 0);
+  const endMs = Math.max(startMs + 1, input.endMs ?? startMs + 1);
+  const capturedAtMs = Math.round(startMs + (endMs - startMs) / 2);
+  const outputPath = path.join(
+    input.outputDir,
+    `${input.filenamePrefix ?? "thumb"}-${capturedAtMs}.jpg`
+  );
+  await execa("ffmpeg", [
+    "-y",
+    "-ss",
+    String(capturedAtMs / 1000),
+    "-i",
+    normalizeLocalUrl(input.sourceUrl),
+    "-frames:v",
+    "1",
+    "-vf",
+    "scale=320:-2",
+    outputPath
+  ]);
+  return { filePath: outputPath, capturedAtMs };
 };

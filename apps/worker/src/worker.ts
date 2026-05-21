@@ -24,6 +24,12 @@ const worker = new Worker(
           productId: string;
           scriptId: string;
           aspectRatio: "VERTICAL_9_16" | "HORIZONTAL_16_9";
+          voiceEnabled?: boolean;
+          bgmEnabled?: boolean;
+          voiceLocale?: string;
+          bgmMood?: string;
+          audioMix?: { voiceVolume?: number; bgmVolume?: number };
+          variantId?: string;
         }
       );
       return;
@@ -38,6 +44,14 @@ const worker = new Worker(
           materialQuery?: string;
         }
       );
+      return;
+    }
+    if (job.name === "experiment-generation") {
+      await updateJob(job.data.jobId as string, {
+        status: "COMPLETED",
+        progress: 100,
+        output: { note: "Experiment variants are orchestrated by the API route." }
+      });
       return;
     }
     throw new Error(`Unknown job name: ${job.name}`);

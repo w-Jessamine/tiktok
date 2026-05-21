@@ -51,9 +51,11 @@ export const registerJobRoutes = async (app: FastifyInstance) => {
         ? "asset-analysis"
         : job.type === "SCRIPT_GENERATION"
           ? "script-generation"
-          : job.type === "SHOT_REGENERATION"
-            ? "shot-regeneration"
-            : "video-generation";
+          : job.type === "EXPERIMENT_GENERATION"
+            ? "experiment-generation"
+            : job.type === "SHOT_REGENERATION"
+              ? "shot-regeneration"
+              : "video-generation";
     await enqueueGenerationJob(queueName, { ...input, jobId: job.id });
     return reply.send({ data: serializeJob(job), requestId: request.id });
   });

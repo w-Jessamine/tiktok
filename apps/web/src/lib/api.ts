@@ -51,7 +51,7 @@ export type AssetDto = AssetCreateInput & {
   id: string;
   objectKey: string;
   thumbnailUrl?: string | null;
-  complianceStatus: "PENDING" | "APPROVED" | "REJECTED";
+  complianceStatus: "PENDING" | "APPROVED" | "REJECTED" | "NEEDS_REVIEW" | "PROVIDER_FAILED";
   productTags: string[];
   videoSummary?: string | null;
   slices: Array<{
@@ -60,6 +60,7 @@ export type AssetDto = AssetCreateInput & {
     tags: string[];
     startMs: number;
     endMs: number;
+    thumbnailUrl?: string | null;
     isUsable: boolean;
   }>;
   score?: number;
@@ -82,6 +83,33 @@ export type VideoExportDto = {
   coverUrl?: string | null;
 };
 
+export type ComplianceReviewDto = {
+  id: string;
+  objectType: "ASSET" | "SCRIPT" | "SHOT" | "VIDEO_EXPORT";
+  objectId: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "NEEDS_REVIEW" | "PROVIDER_FAILED";
+  ruleHits: string[];
+  reviewerNote?: string | null;
+};
+
+export type VideoExperimentDto = {
+  id: string;
+  productId: string;
+  goal: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "PARTIAL" | "FAILED";
+  variants: Array<{
+    id: string;
+    name: string;
+    factors: Record<string, unknown>;
+    metricSummary: Record<string, unknown>;
+    scriptId?: string | null;
+    jobId?: string | null;
+    exportId?: string | null;
+    generationJobs?: GenerationJobDto[];
+    exports?: VideoExportDto[];
+  }>;
+};
+
 export type AnalyticsFactor = {
   factor: string;
   impressions: number;
@@ -90,6 +118,9 @@ export type AnalyticsFactor = {
   ctr: number;
   cvr: number;
   gmv: number;
+  spend?: number;
+  watchSeconds?: number;
+  channels?: string[];
   sources?: string[];
 };
 
@@ -128,7 +159,17 @@ export const api = {
         params.set(key, value);
       }
     });
-    return requestJson<AssetDto[]>(`/api/assets/search?${params.toString()}`);
+    return requestJson<AssetDto[]>(`/api/assets/search?${params.toString()}`).then((assets) =>
+      assets.map((asset) => ({
+        ...asset,
+        url: normalizeUrl(asset.url),
+        thumbnailUrl: asset.thumbnailUrl ? normalizeUrl(asset.thumbnailUrl) : asset.thumbnailUrl,
+        slices: asset.slices.map((slice) => ({
+          ...slice,
+          thumbnailUrl: slice.thumbnailUrl ? normalizeUrl(slice.thumbnailUrl) : slice.thumbnailUrl
+        }))
+      }))
+    );
   },
   generateScripts: (input: ScriptGenerateInput) =>
     requestJson<ScriptDto[]>("/api/scripts/generate", {
@@ -144,6 +185,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input)
     }),
+  createExperiment: (input: {
+    productId: string;
+    goal: string;
+    variantCount: number;
+    aspectRatio: "VERTICAL_9_16" | "HORIZONTAL_16_9";
+    voiceEnabled: boolean;
+    bgmEnabled: boolean;
+  }) =>
+    requestJson<{ experiment: VideoExperimentDto; variants: VideoExperimentDto["variants"] }>(
+      "/api/videos/experiments",
+      {
+        method: "POST",
+        body: JSON.stringify(input)
+      }
+    ),
+  experiment: (id: string) => requestJson<VideoExperimentDto>(`/api/videos/experiments/${id}`),
   regenerateShot: (
     scriptId: string,
     shotId: string,
@@ -180,5 +237,41 @@ export const api = {
     conversions: number;
     gmvCents: number;
     source?: string;
-  }) => requestJson("/api/analytics/factors", { method: "POST", body: JSON.stringify(input) })
+  }) => requestJson("/api/analytics/factors", { method: "POST", body: JSON.stringify(input) }),
+  importMetrics: (input: {
+    rows: Array<{
+      factor: string;
+      impressions: number;
+      clicks: number;
+      orders: number;
+      gmv: number;
+      spend?: number;
+      channel?: string;
+      watchSeconds?: number;
+    }>;
+  }) =>
+    requestJson("/api/analytics/import", {
+      method: "POST",
+      body: JSON.stringify({ source: "CSV", ...input })
+    }),
+  reviewCompliance: (input: { objectType: ComplianceReviewDto["objectType"]; objectId: string }) =>
+    requestJson<ComplianceReviewDto>("/api/compliance/review", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+  decideCompliance: (
+    id: string,
+    input: { status: "APPROVED" | "REJECTED" | "NEEDS_REVIEW"; reviewerNote?: string }
+  ) =>
+    requestJson<ComplianceReviewDto>(`/api/compliance/${id}/decision`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    }),
+  previewAudio: (input: { text: string; language: string; mood: string; durationMs: number }) =>
+    requestJson<{
+      provider: string;
+      status: string;
+      note: string;
+      durationMs: number;
+    }>("/api/audio/preview", { method: "POST", body: JSON.stringify(input) })
 };

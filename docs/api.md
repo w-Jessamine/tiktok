@@ -73,9 +73,32 @@ Updates script fields and shot list.
   "productId": "...",
   "scriptId": "...",
   "aspectRatio": "VERTICAL_9_16",
-  "resolution": "720x1280"
+  "resolution": "720x1280",
+  "voiceEnabled": true,
+  "bgmEnabled": true,
+  "voiceLocale": "en-US",
+  "bgmMood": "upbeat"
 }
 ```
+
+`POST /api/videos/experiments`
+
+Creates 2-3 A/B variants for one product and queues a video job for each variant.
+
+```json
+{
+  "productId": "...",
+  "goal": "Compare hook angles",
+  "variantCount": 2,
+  "aspectRatio": "VERTICAL_9_16",
+  "voiceEnabled": false,
+  "bgmEnabled": true
+}
+```
+
+`GET /api/videos/experiments/:id`
+
+Returns experiment variants, queued jobs, exports and metric summaries.
 
 `POST /api/videos/:id/shots/:shotId/regenerate`
 
@@ -119,3 +142,55 @@ Adds one metric observation for data backflow.
   "source": "manual-demo"
 }
 ```
+
+`POST /api/analytics/import`
+
+Imports CSV-shaped rows from an external analytics source without requiring live ad-platform credentials.
+
+```json
+{
+  "source": "CSV",
+  "rows": [
+    {
+      "factor": "Pain Hook",
+      "impressions": 12000,
+      "clicks": 820,
+      "orders": 42,
+      "gmv": 1680,
+      "spend": 260,
+      "channel": "tiktok_ads",
+      "watchSeconds": 9300
+    }
+  ]
+}
+```
+
+## Compliance
+
+`POST /api/compliance/review`
+
+Runs rules-based compliance review for an asset, script, shot or export.
+
+```json
+{
+  "objectType": "ASSET",
+  "objectId": "..."
+}
+```
+
+`PATCH /api/compliance/:id/decision`
+
+Stores a manual decision for demo review workflows.
+
+```json
+{
+  "status": "APPROVED",
+  "reviewerNote": "Merchant confirmed source rights."
+}
+```
+
+## Audio
+
+`POST /api/audio/preview`
+
+Returns preview metadata for the current audio provider. In the MVP, actual fallback audio is mixed during video rendering.

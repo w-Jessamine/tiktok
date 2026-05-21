@@ -11,7 +11,11 @@ const envSchema = z.object({
   S3_ACCESS_KEY_ID: z.string().default("minioadmin"),
   S3_SECRET_ACCESS_KEY: z.string().default("minioadmin"),
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
-  LOCAL_PUBLIC_STORAGE_URL: z.string().default("http://localhost:9000/videopilot")
+  LOCAL_PUBLIC_STORAGE_URL: z.string().default("http://localhost:9000/videopilot"),
+  TTS_PROVIDER: z.enum(["mock", "ark", "hybrid"]).default("mock"),
+  BGM_PROVIDER: z.enum(["mock", "local"]).default("mock"),
+  COMPLIANCE_PROVIDER: z.enum(["rules", "mock", "external"]).default("rules"),
+  ANALYTICS_PROVIDER: z.enum(["manual", "csv", "mock", "external"]).default("manual")
 });
 
 export const config = envSchema.parse(process.env);

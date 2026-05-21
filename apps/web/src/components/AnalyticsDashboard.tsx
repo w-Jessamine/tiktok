@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
-import { BarChart3, Plus } from "lucide-react";
+import { BarChart3, Plus, Upload } from "lucide-react";
 import { useState } from "react";
 import { api } from "../lib/api";
-import { Button, Input, Panel, StatusPill } from "./ui";
+import { Button, Input, Panel, StatusPill, Textarea } from "./ui";
 
 export const AnalyticsDashboard = () => {
   const queryClient = useQueryClient();
@@ -14,6 +14,10 @@ export const AnalyticsDashboard = () => {
   const [clicks, setClicks] = useState(640);
   const [conversions, setConversions] = useState(31);
   const [gmv, setGmv] = useState(8600);
+  const [csvText, setCsvText] = useState(
+    "factor,impressions,clicks,orders,gmv,spend,channel,watchSeconds\nPain Hook,12000,820,42,1680,260,tiktok_ads,9300"
+  );
+
   const createMetric = useMutation({
     mutationFn: () =>
       api.createMetric({
@@ -24,6 +28,29 @@ export const AnalyticsDashboard = () => {
         gmvCents: Math.round(gmv * 100),
         source: "manual-demo"
       }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["analytics"] })
+  });
+
+  const importMetrics = useMutation({
+    mutationFn: () => {
+      const [headerLine = "", ...lines] = csvText.trim().split(/\r?\n/);
+      const headers = headerLine.split(",").map((header) => header.trim());
+      const rows = lines.filter(Boolean).map((line) => {
+        const cells = line.split(",").map((cell) => cell.trim());
+        const row = Object.fromEntries(headers.map((header, index) => [header, cells[index]]));
+        return {
+          factor: row.factor ?? "Imported creative",
+          impressions: Number(row.impressions ?? 0),
+          clicks: Number(row.clicks ?? 0),
+          orders: Number(row.orders ?? 0),
+          gmv: Number(row.gmv ?? 0),
+          spend: Number(row.spend ?? 0),
+          channel: row.channel,
+          watchSeconds: Number(row.watchSeconds ?? 0)
+        };
+      });
+      return api.importMetrics({ rows });
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["analytics"] })
   });
 
@@ -101,6 +128,16 @@ export const AnalyticsDashboard = () => {
           </div>
         </Panel>
 
+        <Panel title="CSV Import">
+          <div className="grid gap-3">
+            <Textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} />
+            <Button disabled={importMetrics.isPending} onClick={() => importMetrics.mutate()}>
+              <Upload className="h-4 w-4" />
+              Import CSV sample
+            </Button>
+          </div>
+        </Panel>
+
         <Panel title="Insights">
           <div className="grid gap-3">
             {data.map((item) => (
@@ -110,9 +147,9 @@ export const AnalyticsDashboard = () => {
                   <StatusPill tone="good">${item.gmv.toLocaleString()}</StatusPill>
                 </div>
                 <p className="text-sm text-ink/65">
-                  CTR {(item.ctr * 100).toFixed(1)}% · CVR {(item.cvr * 100).toFixed(1)}% ·{" "}
-                  {item.impressions.toLocaleString()} impressions ·{" "}
-                  {item.sources?.join(", ") ?? "seed"}
+                  CTR {(item.ctr * 100).toFixed(1)}% / CVR {(item.cvr * 100).toFixed(1)}% /{" "}
+                  {item.impressions.toLocaleString()} impressions /{" "}
+                  {item.sources?.join(", ") ?? "seed"} / {item.channels?.join(", ") ?? "demo"}
                 </p>
               </div>
             ))}

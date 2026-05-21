@@ -18,6 +18,8 @@ enum ComplianceStatus {
   PENDING
   APPROVED
   REJECTED
+  NEEDS_REVIEW
+  PROVIDER_FAILED
 }
 
 enum JobType {
@@ -25,6 +27,7 @@ enum JobType {
   SCRIPT_GENERATION
   VIDEO_GENERATION
   SHOT_REGENERATION
+  EXPERIMENT_GENERATION
 }
 
 enum JobStatus {
@@ -38,6 +41,46 @@ enum JobStatus {
 enum VideoAspectRatio {
   VERTICAL_9_16
   HORIZONTAL_16_9
+}
+
+enum ExperimentStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum ComplianceObjectType {
+  ASSET
+  SCRIPT
+  SHOT
+  VIDEO_EXPORT
+}
+
+enum AudioAssetType {
+  TTS
+  BGM
+}
+
+enum AudioAssetStatus {
+  READY
+  FAILED
+  FALLBACK
+}
+
+enum AnalyticsIngestionSource {
+  MANUAL
+  CSV
+  MOCK
+  EXTERNAL
+}
+
+enum AnalyticsIngestionStatus {
+  RECEIVED
+  VALIDATED
+  IMPORTED
+  FAILED
 }
 
 model Product {
@@ -55,6 +98,7 @@ model Product {
   scripts        Script[]
   generationJobs GenerationJob[]
   factorMetrics  FactorMetric[]
+  experiments    VideoExperiment[]
 }
 
 model Asset {
@@ -74,6 +118,7 @@ model Asset {
   createdAt        DateTime         @default(now())
   product          Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
   slices           AssetSlice[]
+  complianceReviews ComplianceReview[]
 }
 
 model AssetSlice {
@@ -100,10 +145,17 @@ model FactorMetric {
   clicks      Int      @default(0)
   conversions Int      @default(0)
   gmvCents    Int      @default(0)
+  spendCents   Int      @default(0)
+  watchSeconds Int      @default(0)
+  channel      String?
+  variantId    String?
+  ingestionId  String?
   source      String   @default("mock")
   observedAt  DateTime @default(now())
   createdAt   DateTime @default(now())
   product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant      VideoVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  ingestion    AnalyticsIngestion? @relation(fields: [ingestionId], references: [id], onDelete: SetNull)
 }
 
 model CreativeTemplate {
@@ -134,6 +186,8 @@ model Script {
   template       CreativeTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   shots          StoryboardShot[]
   exports        VideoExport[]
+  complianceReviews ComplianceReview[]
+  variants       VideoVariant[]
 }
 
 model StoryboardShot {
@@ -166,9 +220,13 @@ model GenerationJob {
   trace       Json      @default("[]")
   error       String?
   retryCount  Int       @default(0)
+  experimentId String?
+  variantId    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   product     Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  experiment  VideoExperiment? @relation(fields: [experimentId], references: [id], onDelete: SetNull)
+  variant     VideoVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 }
 
 model VideoExport {
@@ -180,6 +238,89 @@ model VideoExport {
   fileUrl     String
   coverUrl    String?
   config      Json            @default("{}")
+  variantId   String?
   createdAt   DateTime        @default(now())
   script      Script          @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  variant     VideoVariant?   @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  complianceReviews ComplianceReview[]
+}
+
+model VideoExperiment {
+  id          String           @id @default(cuid())
+  productId   String
+  goal        String
+  status      ExperimentStatus @default(QUEUED)
+  variantCount Int             @default(2)
+  winnerVariantId String?
+  config      Json             @default("{}")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  product     Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variants    VideoVariant[]
+  jobs        GenerationJob[]
+}
+
+model VideoVariant {
+  id            String           @id @default(cuid())
+  experimentId  String
+  productId     String
+  scriptId      String?
+  jobId         String?
+  exportId      String?
+  name          String
+  factors       Json             @default("{}")
+  metricSummary Json             @default("{}")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  experiment    VideoExperiment  @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  script        Script?          @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+  metrics       FactorMetric[]
+  generationJobs GenerationJob[]
+  exports       VideoExport[]
+}
+
+model ComplianceReview {
+  id          String               @id @default(cuid())
+  objectType  ComplianceObjectType
+  objectId    String
+  status      ComplianceStatus     @default(PENDING)
+  ruleHits    Json                 @default("[]")
+  trace       Json                 @default("[]")
+  reviewerNote String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  assetId     String?
+  scriptId    String?
+  exportId    String?
+  asset       Asset?               @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  script      Script?              @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  export      VideoExport?         @relation(fields: [exportId], references: [id], onDelete: Cascade)
+}
+
+model AudioAsset {
+  id          String           @id @default(cuid())
+  type        AudioAssetType
+  language    String?
+  mood        String?
+  durationMs  Int
+  fileUrl     String
+  provider    String
+  status      AudioAssetStatus @default(READY)
+  metadata    Json             @default("{}")
+  createdAt   DateTime         @default(now())
+}
+
+model AnalyticsIngestion {
+  id          String                    @id @default(cuid())
+  source      AnalyticsIngestionSource
+  status      AnalyticsIngestionStatus  @default(RECEIVED)
+  filename    String?
+  fieldMapping Json                     @default("{}")
+  validation  Json                      @default("{}")
+  rowsReceived Int                      @default(0)
+  rowsImported Int                      @default(0)
+  error       String?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  metrics     FactorMetric[]
 }

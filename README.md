@@ -2,6 +2,8 @@
 
 AIGC ecommerce product video generation MVP for TikTok Shop sellers. The project covers product material intake, structured asset analysis, script generation, storyboard editing, one-click video creation, task tracing, preview/export, and factor-level data backflow.
 
+Current iteration also includes provider seams and demo-ready workflows for Ark video response calibration, slice thumbnails, TTS/BGM mixing, A/B variants, compliance review, and CSV analytics ingestion.
+
 ## Core Value
 
 Turn merchant product information and owned/licensed materials into short shoppable videos under 15 seconds, while keeping the workflow explainable, retryable, and stable through hybrid real-model plus fallback execution.
@@ -72,6 +74,11 @@ ARK_VIDEO_MODEL=
 ARK_EMBEDDING_MODEL=
 ARK_VIDEO_MAX_POLLS=12
 ARK_VIDEO_POLL_INTERVAL_MS=5000
+ARK_VIDEO_DEBUG_SAMPLE=false
+TTS_PROVIDER=mock
+BGM_PROVIDER=mock
+COMPLIANCE_PROVIDER=rules
+ANALYTICS_PROVIDER=manual
 DATABASE_URL=postgresql://videopilot:videopilot@localhost:5432/videopilot?schema=public
 REDIS_URL=redis://localhost:6379
 S3_ENDPOINT=http://localhost:9000
@@ -82,6 +89,8 @@ S3_SECRET_ACCESS_KEY=minioadmin
 
 `AI_PROVIDER=hybrid` first tries Ark when secrets and models are configured, then falls back to mock generation so demos remain stable.
 
+`ARK_VIDEO_DEBUG_SAMPLE` is off by default. When enabled, it writes only redacted response field paths for Ark video task calibration; it does not persist raw payloads or secrets.
+
 ## User Flow
 
 1. Create a product brief with title, category, selling points, audience and usage scenario.
@@ -91,8 +100,10 @@ S3_SECRET_ACCESS_KEY=minioadmin
 5. Edit storyboard shots: reorder, change duration, adjust subtitles, update material queries or regenerate one shot.
 6. Run one-click video creation in vertical 9:16 or horizontal 16:9.
 7. Worker tries Ark async video generation, then falls back to uploaded material mixing or storyboard composite rendering.
-8. Watch job progress and trace events, then preview/download the exported MP4.
-9. Feed metric observations into the analytics board to show factor-level data backflow.
+8. Optionally enable TTS/BGM audio mix, or generate A/B variants that compare hook, style, CTA, subtitle density and voice tone.
+9. Watch job progress and trace events, then preview/download the exported MP4.
+10. Review compliance status and use manual approval for demo assets that pass source/authenticity checks.
+11. Feed metric observations or CSV rows into the analytics board to show source-aware factor data backflow.
 
 ## Repository Layout
 
@@ -123,14 +134,17 @@ P1:
 - Tag/slice search with lexical plus embedding scoring
 - Shot-level editing
 - Ark provider plus fallback
+- Ark video task response shape calibration through redacted debug samples
+- Real slice thumbnail extraction for uploaded video assets
+- Optional TTS/BGM audio mix with deterministic fallback providers
 - Material-aware FFmpeg mixing
 - Generation trace and retry
-- Factor metric backflow board
+- Factor metric backflow board with manual and CSV ingestion
+- A/B creative variants and rules-based compliance review
 - Docker and CI scaffolding
 
 P2 documented or partially scaffolded:
 
-- Real ad-platform attribution import
-- A/B creative experiments
-- Compliance review workflow
+- Real ad-platform attribution adapter credentials and live sync
+- External content safety provider integration
 - Production observability
