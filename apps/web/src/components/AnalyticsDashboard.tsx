@@ -61,7 +61,7 @@ export const AnalyticsDashboard = () => {
           style={{ height: 420 }}
           option={{
             tooltip: { trigger: "axis" },
-            legend: { data: ["CTR", "CVR", "GMV"] },
+            legend: { data: ["CTR", "CVR", "GMV", "ROI"] },
             grid: { left: 48, right: 24, bottom: 80 },
             xAxis: {
               type: "category",
@@ -85,6 +85,13 @@ export const AnalyticsDashboard = () => {
                 yAxisIndex: 1,
                 data: data.map((item) => item.gmv),
                 color: "#e76f51"
+              },
+              {
+                name: "ROI",
+                type: "line",
+                yAxisIndex: 1,
+                data: data.map((item) => item.roi ?? 0),
+                color: "#111827"
               }
             ]
           }}
@@ -147,7 +154,8 @@ export const AnalyticsDashboard = () => {
                   <StatusPill tone="good">${item.gmv.toLocaleString()}</StatusPill>
                 </div>
                 <p className="text-sm text-ink/65">
-                  CTR {(item.ctr * 100).toFixed(1)}% / CVR {(item.cvr * 100).toFixed(1)}% /{" "}
+                  CTR {(item.ctr * 100).toFixed(1)}% / CVR {(item.cvr * 100).toFixed(1)}% / ROI{" "}
+                  {(item.roi ?? 0).toFixed(1)}x / CPA ${(item.cpa ?? 0).toFixed(2)} /{" "}
                   {item.impressions.toLocaleString()} impressions /{" "}
                   {item.sources?.join(", ") ?? "seed"} / {item.channels?.join(", ") ?? "demo"}
                 </p>

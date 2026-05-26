@@ -30,6 +30,7 @@ cp .env.example .env
 docker compose up -d postgres redis minio
 pnpm prisma:generate
 pnpm prisma:push
+pnpm seed
 pnpm --filter @videopilot/api dev
 pnpm --filter @videopilot/worker dev
 pnpm --filter @videopilot/web dev
@@ -43,8 +44,11 @@ On Windows PowerShell environments that block `.ps1` shims, use:
 npm.cmd exec --yes pnpm@9.12.3 -- install
 npm.cmd exec --yes pnpm@9.12.3 -- prisma:generate
 npm.cmd exec --yes pnpm@9.12.3 -- prisma:push
+npm.cmd exec --yes pnpm@9.12.3 -- seed
 npm.cmd exec --yes pnpm@9.12.3 -- --filter @videopilot/api dev
 ```
+
+`pnpm seed` creates two reviewer-friendly demo products, structured assets, slice metadata, editable scripts, completed job traces, placeholder exports, A/B variants, and factor metrics. It is safe to rerun and gives the UI meaningful data before any real upload or model call.
 
 ## Useful Commands
 
@@ -104,6 +108,8 @@ S3_SECRET_ACCESS_KEY=minioadmin
 9. Watch job progress and trace events, then preview/download the exported MP4.
 10. Review compliance status and use manual approval for demo assets that pass source/authenticity checks.
 11. Feed metric observations or CSV rows into the analytics board to show source-aware factor data backflow.
+
+For the fastest judge walkthrough, run `pnpm seed`, open the web app, then visit Assets, Scripts, Create, Jobs and Analytics in order. The seeded data demonstrates the full loop while the live worker path remains available for real uploads and Ark/FFmpeg generation.
 
 ## Repository Layout
 

@@ -118,6 +118,9 @@ export type AnalyticsFactor = {
   ctr: number;
   cvr: number;
   gmv: number;
+  roi?: number;
+  cpa?: number;
+  aov?: number;
   spend?: number;
   watchSeconds?: number;
   channels?: string[];

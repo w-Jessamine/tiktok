@@ -1,11 +1,12 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Film, FlaskConical, Play, Volume2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, Film, FlaskConical, Play, Trophy, Volume2 } from "lucide-react";
 import { useState } from "react";
 import { api, type ProductDto } from "../lib/api";
 import { useAppStore } from "../lib/store";
 import { Button, Panel, Select, StatusPill } from "./ui";
 
 export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
+  const queryClient = useQueryClient();
   const selectedProductId = useAppStore((state) => state.selectedProductId);
   const selectedScriptId = useAppStore((state) => state.selectedScriptId);
   const setSelectedProductId = useAppStore((state) => state.setSelectedProductId);
@@ -16,6 +17,7 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [bgmEnabled, setBgmEnabled] = useState(true);
   const [experimentId, setExperimentId] = useState<string | null>(null);
+
   const scriptsQuery = useQuery({
     queryKey: ["scripts", selectedProductId],
     queryFn: () => api.scripts(selectedProductId),
@@ -25,6 +27,12 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
     queryKey: ["exports", selectedScriptId],
     queryFn: () => api.exports(selectedScriptId),
     enabled: Boolean(selectedScriptId),
+    refetchInterval: 3000
+  });
+  const experimentQuery = useQuery({
+    queryKey: ["experiment", experimentId],
+    queryFn: () => api.experiment(experimentId!),
+    enabled: Boolean(experimentId),
     refetchInterval: 3000
   });
 
@@ -57,21 +65,27 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
         voiceEnabled,
         bgmEnabled
       }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setExperimentId(result.experiment.id);
       const firstJobId = result.variants.find((variant) => variant.jobId)?.jobId;
       if (firstJobId) {
         useAppStore.getState().setActiveJobId(firstJobId);
       }
+      await queryClient.invalidateQueries({ queryKey: ["scripts"] });
+      await queryClient.invalidateQueries({ queryKey: ["exports"] });
     }
   });
 
-  const experimentQuery = useQuery({
-    queryKey: ["experiment", experimentId],
-    queryFn: () => api.experiment(experimentId!),
-    enabled: Boolean(experimentId),
-    refetchInterval: 3000
-  });
+  const variants = experimentQuery.data?.variants ?? [];
+  const winner = variants
+    .map((variant) => ({
+      ...variant,
+      score:
+        Number(variant.metricSummary.ctr ?? 0) * 100 +
+        Number(variant.metricSummary.cvr ?? 0) * 180 +
+        Number(variant.metricSummary.gmv ?? 0) / 1000
+    }))
+    .sort((a, b) => b.score - a.score)[0];
 
   return (
     <div className="grid gap-5 xl:grid-cols-[0.85fr_1.5fr]">
@@ -111,8 +125,8 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
               value={aspectRatio}
               onChange={(event) => setAspectRatio(event.target.value as typeof aspectRatio)}
             >
-              <option value="VERTICAL_9_16">Vertical 9:16 · 720x1280</option>
-              <option value="HORIZONTAL_16_9">Horizontal 16:9 · 1280x720</option>
+              <option value="VERTICAL_9_16">Vertical 9:16 / 720x1280</option>
+              <option value="HORIZONTAL_16_9">Horizontal 16:9 / 1280x720</option>
             </Select>
           </label>
           <div className="grid gap-2 rounded-md bg-mist p-3">
@@ -156,7 +170,21 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
 
       <Panel title="Preview & Export">
         <div className="grid gap-4">
-          {experimentQuery.data?.variants.map((variant) => (
+          {variants.length > 0 && (
+            <div className="rounded-md border border-mint/30 bg-mint/5 p-4">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Trophy className="h-4 w-4 text-mint" />
+                <strong>Experiment winner</strong>
+                {winner && <StatusPill tone="good">{winner.name}</StatusPill>}
+              </div>
+              <p className="text-sm text-ink/65">
+                Winner is estimated from CTR, CVR and GMV. Import real campaign metrics in Analytics
+                to replace the mock estimate.
+              </p>
+            </div>
+          )}
+
+          {variants.map((variant) => (
             <article key={variant.id} className="rounded-md border border-ink/10 p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <strong>{variant.name}</strong>
@@ -165,17 +193,21 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
                     <StatusPill>{variant.generationJobs[0].status}</StatusPill>
                   )}
                   <StatusPill tone="good">
-                    CTR {Number(variant.metricSummary.ctr ?? 0.06).toFixed(3)}
+                    CTR {(Number(variant.metricSummary.ctr ?? 0.06) * 100).toFixed(1)}%
+                  </StatusPill>
+                  <StatusPill>
+                    GMV ${Number(variant.metricSummary.gmv ?? 0).toLocaleString()}
                   </StatusPill>
                 </div>
               </div>
               <p className="text-sm text-ink/65">
                 {Object.entries(variant.factors)
                   .map(([key, value]) => `${key}: ${String(value)}`)
-                  .join(" 路 ")}
+                  .join(" / ")}
               </p>
             </article>
           ))}
+
           {exportsQuery.data?.map((item) => (
             <article
               key={item.id}
@@ -207,9 +239,9 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
               </div>
             </article>
           ))}
-          {!exportsQuery.data?.length && (
+          {!exportsQuery.data?.length && variants.length === 0 && (
             <div className="rounded-md border border-dashed border-ink/20 p-8 text-center text-sm text-ink/60">
-              Generated exports appear here after the worker finishes rendering.
+              Generated exports and A/B variants appear here after the worker finishes rendering.
             </div>
           )}
         </div>
