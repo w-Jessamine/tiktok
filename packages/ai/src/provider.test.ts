@@ -101,4 +101,23 @@ describe("AI providers", () => {
     expect(result.note).not.toContain("unit-test-secret-value");
     expect(result.note).not.toContain("unit-test-model-value");
   });
+
+  it("uses Ark-compatible video duration defaults", async () => {
+    const provider = new MockAiProvider();
+    const output = await provider.generateShotVideo({
+      productTitle: "Duration Check",
+      aspectRatio: "VERTICAL_9_16",
+      shot: {
+        order: 0,
+        durationMs: 2800,
+        visualPrompt: "show product duration check",
+        cameraMotion: "push",
+        materialQuery: "product",
+        subtitle: "Duration check",
+        voiceover: "Duration check",
+        bgmMood: "upbeat"
+      }
+    });
+    expect(output.status).toBe("fallback");
+  });
 });

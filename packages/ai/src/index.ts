@@ -728,8 +728,9 @@ export class ArkAiProvider implements AiProvider {
       body: {
         model: this.videoModel,
         content: this.buildVideoContent(input),
-        duration: Math.max(2, Math.min(5, Math.round(input.shot.durationMs / 1000))),
-        ratio: input.aspectRatio === "HORIZONTAL_16_9" ? "16:9" : "9:16"
+        duration: this.resolveVideoDuration(input.shot.durationMs),
+        ratio: input.aspectRatio === "HORIZONTAL_16_9" ? "16:9" : "9:16",
+        resolution: process.env.ARK_VIDEO_RESOLUTION ?? "720p"
       },
       castTo: Object
     } as any);
@@ -808,6 +809,15 @@ export class ArkAiProvider implements AiProvider {
       ];
     }
     return [{ type: "text", text }];
+  }
+
+  private resolveVideoDuration(shotDurationMs: number) {
+    const explicitDuration = Number(process.env.ARK_VIDEO_DURATION);
+    if ([5, 10, 12].includes(explicitDuration)) {
+      return explicitDuration;
+    }
+    const requestedSeconds = Math.max(5, Math.round(shotDurationMs / 1000));
+    return [5, 10, 12].find((duration) => duration >= requestedSeconds) ?? 12;
   }
 
   private async parseArkVideoTask(payload: unknown): Promise<ArkVideoTaskPollResult> {
