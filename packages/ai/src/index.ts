@@ -143,6 +143,237 @@ const normalizeEmbedding = (vector: number[], dimensions = 64) => {
   return padded.map((value) => Number((value / norm).toFixed(6)));
 };
 
+type CommerceScriptInput = {
+  product: ProductCreateInput & { id: string };
+  prompt?: string;
+  count: number;
+  templateName?: string;
+};
+
+type CommerceAngle = {
+  name: string;
+  narrative: string;
+  visualStyle: string;
+  hook: string;
+  proof: string;
+  proofVisual: string;
+  proofMotion: string;
+  cta: string;
+  subtitleDensity: "low" | "medium" | "high";
+  voiceTone: string;
+};
+
+export const commerceScriptAngles: CommerceAngle[] = [
+  {
+    name: "Pain Point Rescue",
+    narrative:
+      "Open with a daily pain point, reveal the product as the fast fix, prove one concrete benefit, then close with an urgent shopping cue.",
+    visualStyle: "Douyin-style fast problem-solution demo",
+    hook: "pain-point cold open",
+    proof: "hands-on feature proof",
+    proofVisual: "show a hand applying or using the product, then cut to the first visible detail",
+    proofMotion: "fast hand demo with snap zoom",
+    cta: "tap to solve it today",
+    subtitleDensity: "high",
+    voiceTone: "direct and energetic"
+  },
+  {
+    name: "Scene Seeding",
+    narrative:
+      "Place the product inside a relatable lifestyle scene, show natural usage, highlight texture or scale, and finish with a routine-upgrade CTA.",
+    visualStyle: "first-person UGC lifestyle seeding",
+    hook: "relatable first-person scene",
+    proof: "usage process proof",
+    proofVisual: "show the product moving through a real routine step by step",
+    proofMotion: "first-person follow shot with soft jump cuts",
+    cta: "add it to your routine",
+    subtitleDensity: "medium",
+    voiceTone: "friendly and conversational"
+  },
+  {
+    name: "Proof Comparison",
+    narrative:
+      "Compress value through before/after contrast, feature detail, visible outcome and a concise offer close.",
+    visualStyle: "split-screen comparison and proof cuts",
+    hook: "before-after contrast",
+    proof: "visible comparison proof",
+    proofVisual: "show before/after or side-by-side comparison with the product in frame",
+    proofMotion: "split-screen reveal with match cut",
+    cta: "compare it yourself",
+    subtitleDensity: "medium",
+    voiceTone: "credible and specific"
+  },
+  {
+    name: "Trust Offer",
+    narrative:
+      "Lead with product detail and source credibility, show the key selling point, then close on bundle or limited offer without overclaiming.",
+    visualStyle: "clean retail packshot with trust cues",
+    hook: "detail-first trust hook",
+    proof: "packshot plus ingredient/material cue",
+    proofVisual: "show packshot, material detail, label-safe cue, and careful close-up",
+    proofMotion: "slow macro pan with premium hold",
+    cta: "tap while the offer is live",
+    subtitleDensity: "low",
+    voiceTone: "calm and premium"
+  }
+];
+
+export const buildCommerceScriptSystemPrompt = () =>
+  [
+    "You are a TikTok Shop / Douyin ecommerce short-video director.",
+    "Generate conversion-focused product video scripts, not generic brand copy.",
+    "Every script must follow this commerce rhythm: 0-3s hook, product reveal, proof/demo, usage payoff, CTA.",
+    "Use concrete visual instructions that can drive text-to-video, image-to-video, or material-mix editing.",
+    "Mention product truthfully; do not invent certifications, medical efficacy, guaranteed results, fake scarcity, fake reviews, or competitor names.",
+    "Prefer visible proof: texture, scale, before/after organization, hands-on use, packshot, source statement, offer card.",
+    'Return strict JSON only: { "scripts": ScriptModel[] }.',
+    "Each ScriptModel needs 4-6 shots, total duration <= 15000ms, subtitle <= 90 chars, voiceover <= 220 chars."
+  ].join(" ");
+
+export const buildCommerceScriptUserPrompt = (input: CommerceScriptInput) =>
+  JSON.stringify({
+    product: input.product,
+    requestedCount: input.count,
+    merchantPrompt: input.prompt ?? "",
+    preferredTemplate: input.templateName ?? "",
+    platformPlaybook: {
+      hooks: commerceScriptAngles.map((angle) => angle.hook),
+      proofFactors: commerceScriptAngles.map((angle) => angle.proof),
+      ctaOptions: commerceScriptAngles.map((angle) => angle.cta),
+      requiredConstraints: [
+        "show real product appearance when uploaded assets are available",
+        "avoid unsupported absolute claims",
+        "make the first shot understandable without sound",
+        "keep the full export under 15 seconds",
+        "include shot-level materialQuery for asset retrieval"
+      ]
+    }
+  });
+
+const clampLine = (text: string, maxLength: number) => {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(1, maxLength - 1)).trimEnd()}.`;
+};
+
+const sellingPoint = (product: ProductCreateInput, index: number, fallback: string) =>
+  product.sellingPoints[index] ?? product.sellingPoints[0] ?? fallback;
+
+const resolveAngles = (input: CommerceScriptInput) => {
+  const preferred = input.templateName?.toLowerCase() ?? "";
+  const prompt = input.prompt?.toLowerCase() ?? "";
+  const scored = commerceScriptAngles
+    .map((angle) => {
+      const haystack =
+        `${angle.name} ${angle.hook} ${angle.visualStyle} ${angle.cta}`.toLowerCase();
+      return {
+        angle,
+        score:
+          (preferred && haystack.includes(preferred) ? 3 : 0) +
+          (prompt && prompt.split(/\s+/).some((word) => word.length > 3 && haystack.includes(word))
+            ? 1
+            : 0)
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+  const ordered = scored.map((item) => item.angle);
+  return [...ordered, ...commerceScriptAngles].filter(
+    (angle, index, list) => list.findIndex((item) => item.name === angle.name) === index
+  );
+};
+
+const createCommerceScript = (input: CommerceScriptInput, angle: CommerceAngle): ScriptModel => {
+  const product = input.product;
+  const primary = sellingPoint(product, 0, "main benefit");
+  const secondary = sellingPoint(product, 1, "easy daily use");
+  const tertiary = sellingPoint(product, 2, "visible quality detail");
+  const audience = product.audience || "target shoppers";
+  const scenario = product.scenario || "daily shopping scenario";
+  const productTitle = product.title;
+
+  const shots: StoryboardShot[] = [
+    {
+      order: 0,
+      durationMs: 2200,
+      visualPrompt: `${angle.hook}: show ${scenario} with an instantly recognizable shopper problem before revealing ${productTitle}.`,
+      cameraMotion: "fast push-in with jump cut",
+      materialQuery: `${product.category} hook problem scene ${scenario}`,
+      subtitle: clampLine(`Still dealing with this? ${primary}`, 90),
+      voiceover: clampLine(`${audience} know this problem. Here is the fast product fix.`, 220),
+      bgmMood: "fast hook beat"
+    },
+    {
+      order: 1,
+      durationMs: 2600,
+      visualPrompt: `Reveal ${productTitle} in hand or packshot, then demonstrate ${primary} with clear product visibility.`,
+      cameraMotion: "handheld reveal to close-up",
+      materialQuery: `${productTitle} packshot ${primary}`,
+      subtitle: clampLine(primary, 90),
+      voiceover: clampLine(`${productTitle} focuses on ${primary}, shown in a real-use demo.`, 220),
+      bgmMood: "clean product pop"
+    },
+    {
+      order: 2,
+      durationMs: 2800,
+      visualPrompt: `Show proof for ${secondary}: ${angle.proofVisual}. Keep ${productTitle} visible and avoid unsupported claims.`,
+      cameraMotion: angle.proofMotion,
+      materialQuery: `${secondary} ${angle.proof} product detail demo`,
+      subtitle: clampLine(`Proof: ${secondary}`, 90),
+      voiceover: clampLine(
+        `The detail shot makes ${secondary} easy to understand without overclaiming.`,
+        220
+      ),
+      bgmMood: "satisfying proof rhythm"
+    },
+    {
+      order: 3,
+      durationMs: 2800,
+      visualPrompt: `Place the product naturally in ${scenario}; show the payoff for ${audience} using ${tertiary}.`,
+      cameraMotion: "smooth pull-back to lifestyle scene",
+      materialQuery: `${scenario} lifestyle payoff ${tertiary}`,
+      subtitle: clampLine(`Fits ${scenario}`, 90),
+      voiceover: clampLine(
+        `It fits into ${scenario}, with ${tertiary} as the visible payoff.`,
+        220
+      ),
+      bgmMood: "warm lift"
+    },
+    {
+      order: 4,
+      durationMs: 2400,
+      visualPrompt: `End with product packshot, offer card, source-safe wording, and clear CTA: ${angle.cta}.`,
+      cameraMotion: "locked packshot with CTA card",
+      materialQuery: `${productTitle} packshot offer card CTA`,
+      subtitle: clampLine(angle.cta, 90),
+      voiceover: clampLine(`Tap to view ${productTitle} while the offer is live.`, 220),
+      bgmMood: "bright CTA finish"
+    }
+  ];
+
+  return scriptSchema.parse({
+    productId: product.id,
+    templateId: null,
+    title: `${productTitle} - ${angle.name}`,
+    narrative: angle.narrative,
+    visualStyle: angle.visualStyle,
+    language: product.language,
+    constraints: [
+      "final video must be under 15 seconds",
+      "first three seconds must be understandable without sound",
+      "show real product appearance when assets are available",
+      "use product-specific proof instead of generic adjectives",
+      "avoid unsupported efficacy, fake reviews, fake scarcity and competitor logos"
+    ],
+    prompt: [input.prompt, `Preset=${angle.name}; CTA=${angle.cta}; voice=${angle.voiceTone}`]
+      .filter(Boolean)
+      .join("\n"),
+    version: 1,
+    shots
+  });
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object" && !Array.isArray(value));
 
@@ -244,84 +475,9 @@ export class MockAiProvider implements AiProvider {
     count: number;
     templateName?: string;
   }): Promise<ScriptModel[]> {
-    const templateNames = ["Pain Point Hook", "Lifestyle Seeding", "Texture Detail"];
+    const angles = resolveAngles(input);
     return Array.from({ length: input.count }, (_, index) => {
-      const title = `${input.product.title} - ${templateNames[index] ?? "Conversion Story"}`;
-      const style =
-        index === 1
-          ? "sunny lifestyle UGC"
-          : index === 2
-            ? "macro detail editorial"
-            : "fast benefit-led demo";
-      const shots: StoryboardShot[] = [
-        {
-          order: 0,
-          durationMs: 2400,
-          visualPrompt: `Open with ${input.product.scenario} pain point and product reveal.`,
-          cameraMotion: "quick push-in",
-          materialQuery: "hero hook product scene",
-          subtitle: "Still dealing with this?",
-          voiceover: `If ${input.product.audience} need a faster fix, start here.`,
-          bgmMood: "confident upbeat"
-        },
-        {
-          order: 1,
-          durationMs: 2600,
-          visualPrompt: `Show ${input.product.title} solving the first key use case.`,
-          cameraMotion: "handheld follow",
-          materialQuery: input.product.sellingPoints[0] ?? "main benefit",
-          subtitle: input.product.sellingPoints[0] ?? "Designed for daily wins",
-          voiceover: `${input.product.sellingPoints[0] ?? "The main benefit"} shows up in seconds.`,
-          bgmMood: "clean rhythmic"
-        },
-        {
-          order: 2,
-          durationMs: 2600,
-          visualPrompt: "Cut to material, detail, size or before-after proof.",
-          cameraMotion: "macro pan",
-          materialQuery: "detail texture proof",
-          subtitle: "Details you can see",
-          voiceover: "The close-up makes the quality easy to trust.",
-          bgmMood: "satisfying pop"
-        },
-        {
-          order: 3,
-          durationMs: 2800,
-          visualPrompt: `Place the product in ${input.product.scenario} with a natural lifestyle payoff.`,
-          cameraMotion: "smooth pull-back",
-          materialQuery: "lifestyle payoff scene",
-          subtitle: "Fits your routine",
-          voiceover: `It fits naturally into ${input.product.scenario}.`,
-          bgmMood: "warm lift"
-        },
-        {
-          order: 4,
-          durationMs: 2400,
-          visualPrompt: "End with product packshot, value message and CTA.",
-          cameraMotion: "locked packshot",
-          materialQuery: "packshot call to action",
-          subtitle: "Tap to shop",
-          voiceover: "Tap to shop while the offer is live.",
-          bgmMood: "bright finish"
-        }
-      ];
-
-      return scriptSchema.parse({
-        productId: input.product.id,
-        templateId: null,
-        title,
-        narrative: `${input.templateName ?? templateNames[index] ?? "Auto"} script for a sub-15s conversion-focused product video.`,
-        visualStyle: style,
-        language: input.product.language,
-        constraints: [
-          "final video must be under 15 seconds",
-          "show real product appearance when assets are available",
-          "avoid competitor logos and unsupported claims"
-        ],
-        prompt: input.prompt ?? "",
-        version: 1,
-        shots
-      });
+      return createCommerceScript(input, angles[index % angles.length]!);
     });
   }
 
@@ -397,12 +553,11 @@ export class ArkAiProvider implements AiProvider {
       messages: [
         {
           role: "system",
-          content:
-            "Generate ecommerce short-video scripts. Return JSON: { scripts: ScriptModel[] }. Each script needs 4-6 shots and total duration <= 15000ms."
+          content: buildCommerceScriptSystemPrompt()
         },
         {
           role: "user",
-          content: JSON.stringify(input)
+          content: buildCommerceScriptUserPrompt(input)
         }
       ],
       response_format: { type: "json_object" }
