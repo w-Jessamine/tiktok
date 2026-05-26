@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config";
+import { storageRoot } from "./paths";
 
 export const s3 = new S3Client({
   endpoint: config.S3_ENDPOINT,
@@ -22,7 +23,7 @@ export const putObject = async (input: {
 }) => {
   const safeName = input.filename.replace(/[^a-zA-Z0-9._-]/g, "-");
   const objectKey = `${input.prefix ?? "uploads"}/${nanoid(10)}-${safeName}`;
-  const localPath = path.resolve(process.cwd(), "storage", objectKey);
+  const localPath = path.resolve(storageRoot, objectKey);
   await mkdir(path.dirname(localPath), { recursive: true });
   await writeFile(localPath, input.buffer);
 

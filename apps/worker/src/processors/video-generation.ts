@@ -5,6 +5,7 @@ import type { VideoAspectRatio } from "@videopilot/shared";
 import { config } from "../config";
 import { prisma } from "../db";
 import { appendTrace, updateJob } from "../services/job-trace";
+import { workerOutputRoot } from "../services/paths";
 
 const ai = createAiProvider();
 const tts = createTtsProvider();
@@ -78,7 +79,7 @@ export const processVideoGeneration = async (data: {
   const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
   const queryEmbeddings = new Map<string, number[]>();
   const renderMaterials: RenderMaterial[] = [];
-  const audioOutputDir = path.resolve(config.WORKER_OUTPUT_DIR, "audio", data.jobId);
+  const audioOutputDir = path.resolve(workerOutputRoot, "audio", data.jobId);
   const voicePaths: string[] = [];
 
   await updateJob(data.jobId, { progress: 25 });
@@ -235,7 +236,7 @@ export const processVideoGeneration = async (data: {
       voiceVolume: data.audioMix?.voiceVolume,
       bgmVolume: data.audioMix?.bgmVolume
     },
-    outputDir: path.resolve(config.WORKER_OUTPUT_DIR)
+    outputDir: path.resolve(workerOutputRoot)
   });
   const fileUrl = localPublicUrl(renderOutput.filePath);
   const coverUrl = localPublicUrl(renderOutput.coverPath);

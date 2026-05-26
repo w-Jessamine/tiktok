@@ -4,6 +4,7 @@ import path from "node:path";
 import { config } from "../config";
 import { prisma } from "../db";
 import { appendTrace, updateJob } from "../services/job-trace";
+import { workerOutputRoot } from "../services/paths";
 
 const ai = createAiProvider();
 
@@ -36,7 +37,7 @@ const generateSliceThumbnail = async (input: {
       sourceUrl: input.assetUrl,
       startMs: input.startMs,
       endMs: input.endMs,
-      outputDir: path.resolve(config.WORKER_OUTPUT_DIR, "thumbnails", input.assetId),
+      outputDir: path.resolve(workerOutputRoot, "thumbnails", input.assetId),
       filenamePrefix: `slice-${input.index + 1}`
     });
     return localPublicUrl(thumbnail.filePath);

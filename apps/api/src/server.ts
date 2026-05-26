@@ -3,7 +3,10 @@ import multipart from "@fastify/multipart";
 import staticPlugin from "@fastify/static";
 import Fastify from "fastify";
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { storageRoot } from "./services/paths";
 import { config } from "./config";
 import { registerAnalyticsRoutes } from "./routes/analytics";
 import { registerAssetRoutes } from "./routes/assets";
@@ -13,6 +16,23 @@ import { registerJobRoutes } from "./routes/jobs";
 import { registerProductRoutes } from "./routes/products";
 import { registerScriptRoutes } from "./routes/scripts";
 import { registerVideoRoutes } from "./routes/videos";
+
+const infrastructureError = (error: Error & { code?: string }) => {
+  const message = error.message ?? "";
+  if (
+    error.name === "PrismaClientInitializationError" ||
+    message.includes("Environment variable not found: DATABASE_URL") ||
+    message.includes("Can't reach database server")
+  ) {
+    return {
+      statusCode: 503,
+      code: "DATABASE_UNAVAILABLE",
+      message:
+        "Database is not configured or reachable. Set DATABASE_URL, start PostgreSQL, and run prisma db push/seed before using data-backed APIs."
+    };
+  }
+  return null;
+};
 
 export const buildApp = async () => {
   const app = Fastify({
@@ -29,8 +49,9 @@ export const buildApp = async () => {
 
   await app.register(cors, { origin: true });
   await app.register(multipart, { limits: { fileSize: 200 * 1024 * 1024 } });
+  await mkdir(storageRoot, { recursive: true });
   await app.register(staticPlugin, {
-    root: path.resolve(process.cwd(), "storage"),
+    root: storageRoot,
     prefix: "/storage/"
   });
 
@@ -47,10 +68,11 @@ export const buildApp = async () => {
 
   app.setErrorHandler((error: Error & { statusCode?: number; code?: string }, request, reply) => {
     request.log.error({ err: error }, "request failed");
-    reply.status(error.statusCode ?? 500).send({
+    const infrastructure = infrastructureError(error);
+    reply.status(infrastructure?.statusCode ?? error.statusCode ?? 500).send({
       error: {
-        message: error.message,
-        code: error.code ?? "INTERNAL_ERROR"
+        message: infrastructure?.message ?? error.message,
+        code: infrastructure?.code ?? error.code ?? "INTERNAL_ERROR"
       },
       requestId: request.id
     });
@@ -59,7 +81,11 @@ export const buildApp = async () => {
   return app;
 };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const isMain = process.argv[1]
+  ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  : false;
+
+if (isMain) {
   const app = await buildApp();
   await app.listen({ port: config.PORT, host: "0.0.0.0" });
 }
