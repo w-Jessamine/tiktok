@@ -251,7 +251,7 @@ export const processVideoGeneration = async (data: {
       variantId: data.variantId,
       config: {
         renderer: "ffmpeg",
-        source: renderMaterials.length > 0 ? "material-aware-mix" : "storyboard-fallback-composite",
+        source: renderOutput.renderSource,
         materialCount: renderMaterials.length,
         audio: {
           voiceEnabled: Boolean(data.voiceEnabled),

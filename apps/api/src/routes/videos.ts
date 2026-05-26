@@ -7,6 +7,7 @@ import {
   type ScriptModel
 } from "@videopilot/shared";
 import { prisma } from "../db/prisma";
+import { asRecord } from "../services/serialize";
 import { runComplianceReview } from "../services/compliance";
 import { enqueueGenerationJob } from "../services/queue";
 
@@ -68,6 +69,39 @@ const variantPresets = [
     voiceTone: "assured"
   }
 ];
+
+const renderSourceFromConfig = (config: unknown) => {
+  const source = asRecord(config).source;
+  if (
+    source === "ARK_GENERATED" ||
+    source === "MATERIAL_MIX" ||
+    source === "DYNAMIC_FALLBACK" ||
+    source === "STORYBOARD_FALLBACK"
+  ) {
+    return source;
+  }
+  if (source === "material-aware-mix") {
+    return "MATERIAL_MIX";
+  }
+  return "STORYBOARD_FALLBACK";
+};
+
+const serializeExport = (item: {
+  id: string;
+  scriptId: string;
+  aspectRatio: "VERTICAL_9_16" | "HORIZONTAL_16_9";
+  resolution: string;
+  durationMs: number;
+  fileUrl: string;
+  coverUrl: string | null;
+  config: unknown;
+  createdAt: Date;
+}) => ({
+  ...item,
+  renderSource: renderSourceFromConfig(item.config),
+  config: asRecord(item.config),
+  createdAt: item.createdAt.toISOString()
+});
 
 export const registerVideoRoutes = async (app: FastifyInstance) => {
   app.post("/api/videos/generate", async (request, reply) => {
@@ -263,6 +297,6 @@ export const registerVideoRoutes = async (app: FastifyInstance) => {
       where: { scriptId: query.scriptId },
       orderBy: { createdAt: "desc" }
     });
-    return reply.send({ data: exports, requestId: request.id });
+    return reply.send({ data: exports.map(serializeExport), requestId: request.id });
   });
 };

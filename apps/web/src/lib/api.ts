@@ -5,6 +5,7 @@ import type {
   ScriptGenerateInput,
   ScriptModel,
   ScriptPatchInput,
+  VideoExportDto as SharedVideoExportDto,
   VideoGenerateInput
 } from "@videopilot/shared";
 
@@ -73,15 +74,7 @@ export type ScriptDto = Omit<ScriptModel, "shots"> & {
   shots: Array<ScriptModel["shots"][number] & { id: string; scriptId: string }>;
 };
 
-export type VideoExportDto = {
-  id: string;
-  scriptId: string;
-  aspectRatio: "VERTICAL_9_16" | "HORIZONTAL_16_9";
-  resolution: string;
-  durationMs: number;
-  fileUrl: string;
-  coverUrl?: string | null;
-};
+export type VideoExportDto = SharedVideoExportDto;
 
 export type ComplianceReviewDto = {
   id: string;

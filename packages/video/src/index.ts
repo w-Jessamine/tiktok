@@ -1,7 +1,7 @@
 import { mkdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execa } from "execa";
-import type { StoryboardShot, VideoAspectRatio } from "@videopilot/shared";
+import type { StoryboardShot, VideoAspectRatio, VideoRenderSource } from "@videopilot/shared";
 
 export type RenderInput = {
   scriptTitle: string;
@@ -25,6 +25,7 @@ export type RenderOutput = {
   coverPath: string;
   durationMs: number;
   resolution: string;
+  renderSource: VideoRenderSource;
 };
 
 export type RenderAudioInput = {
@@ -42,6 +43,8 @@ export type ThumbnailOutput = {
   filePath: string;
   capturedAtMs: number;
 };
+
+const FPS = 30;
 
 export const getResolution = (aspectRatio: VideoAspectRatio) =>
   aspectRatio === "HORIZONTAL_16_9" ? "1280x720" : "720x1280";
@@ -99,6 +102,31 @@ const shotPalettes = [
 ];
 
 const shotStages = ["HOOK", "PRODUCT", "PROOF", "OFFER", "TRUST", "CTA"];
+
+const motionPresets = [
+  {
+    zoom: "1.04+0.0018*on",
+    x: "iw/2-(iw/zoom/2)+sin(on/18)*12",
+    y: "ih/2-(ih/zoom/2)+cos(on/22)*10"
+  },
+  {
+    zoom: "1.12-0.0012*on",
+    x: "iw/2-(iw/zoom/2)-sin(on/20)*14",
+    y: "ih/2-(ih/zoom/2)+sin(on/25)*8"
+  },
+  {
+    zoom: "1.06+0.0010*on",
+    x: "iw/2-(iw/zoom/2)+cos(on/16)*18",
+    y: "ih/2-(ih/zoom/2)"
+  },
+  {
+    zoom: "1.09+0.0014*on",
+    x: "iw/2-(iw/zoom/2)",
+    y: "ih/2-(ih/zoom/2)+sin(on/14)*12"
+  }
+];
+
+const getMotionPreset = (index: number) => motionPresets[index % motionPresets.length]!;
 
 const drawTextLines = (input: {
   lines: string[];
@@ -168,6 +196,55 @@ const normalizeLocalUrl = (url: string) => {
   return path.resolve(process.cwd(), url);
 };
 
+const withFps = (durationSeconds: number) => Math.max(1, Math.round(durationSeconds * FPS));
+
+const buildKenBurnsScale = (input: {
+  width: number;
+  height: number;
+  durationSeconds: number;
+  index: number;
+}) => {
+  const preset = getMotionPreset(input.index);
+  const frames = withFps(input.durationSeconds);
+  return [
+    `scale=${input.width * 2}:${input.height * 2}:force_original_aspect_ratio=increase`,
+    `crop=${input.width * 2}:${input.height * 2}`,
+    `zoompan=z='min(${preset.zoom}\\,1.22)':x='${preset.x}':y='${preset.y}':d=${frames}:s=${input.width}x${input.height}:fps=${FPS}`,
+    `trim=duration=${input.durationSeconds}`,
+    "setpts=PTS-STARTPTS"
+  ].join(",");
+};
+
+const between = (start: number, end: number) => `between(t\\,${start}\\,${end})`;
+
+const buildVideoMotionScale = (input: { width: number; height: number; index: number }) => {
+  const xPhase = input.index % 2 === 0 ? "sin(t*1.7)*18" : "cos(t*1.5)*18";
+  const yPhase = input.index % 2 === 0 ? "cos(t*1.3)*12" : "sin(t*1.8)*12";
+  return [
+    `scale=${Math.round(input.width * 1.16)}:${Math.round(input.height * 1.16)}:force_original_aspect_ratio=increase`,
+    `crop=${input.width}:${input.height}:x='(in_w-out_w)/2+${xPhase}':y='(in_h-out_h)/2+${yPhase}'`,
+    "setpts=PTS-STARTPTS"
+  ].join(",");
+};
+
+const buildSubtitleOverlay = (input: {
+  shot: StoryboardShot;
+  aspectRatio: VideoAspectRatio;
+  index: number;
+}) => {
+  const subtitle = escapeDrawText(input.shot.subtitle.slice(0, 88));
+  const queryBadge = escapeDrawText(input.shot.materialQuery.split(/\s+/).slice(0, 4).join(" "));
+  const fontSize = input.aspectRatio === "HORIZONTAL_16_9" ? 30 : 28;
+  const badgeSize = input.aspectRatio === "HORIZONTAL_16_9" ? 20 : 19;
+  return [
+    "drawbox=x=0:y=h*0.70:w=w:h=h*0.30:color=black@0.26:t=fill",
+    `drawbox=x=w*0.07:y=h*0.075:w=w*0.28:h=h*0.044:color=black@0.30:t=fill:enable='${between(0, 1.7)}'`,
+    `drawtext=text='SHOT ${input.index + 1}':fontcolor=white@0.86:fontsize=${badgeSize}:x=w*0.09:y=h*0.085:enable='${between(0, 1.7)}'`,
+    `drawtext=text='${queryBadge}':fontcolor=white@0.72:fontsize=${badgeSize}:x=w*0.09:y=h*0.13:enable='${between(0.15, 1.9)}'`,
+    `drawtext=text='${subtitle}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=h*0.78:box=1:boxcolor=black@0.24:boxborderw=16`
+  ].join(",");
+};
+
 const hasUsableAudioFile = async (filePath?: string) => {
   if (!filePath) {
     return false;
@@ -192,12 +269,28 @@ const renderMaterialClip = async (input: {
   const durationSeconds = Math.max(1.2, Math.min(5, input.shot.durationMs / 1000));
   const outputPath = path.join(input.outputDir, `clip-${input.index}.mp4`);
   const sourceUrl = normalizeLocalUrl(input.material.url);
-  const subtitle = escapeDrawText(input.shot.subtitle.slice(0, 80));
-  const commonVideoFilter = [
-    `scale=${width}:${height}:force_original_aspect_ratio=increase`,
-    `crop=${width}:${height}`,
-    `drawbox=x=0:y=h*0.72:w=w:h=h*0.28:color=black@0.35:t=fill`,
-    `drawtext=text='${subtitle}':fontcolor=white:fontsize=${input.aspectRatio === "HORIZONTAL_16_9" ? 30 : 28}:x=(w-text_w)/2:y=h*0.80`,
+  const imageMotion = buildKenBurnsScale({
+    width,
+    height,
+    durationSeconds,
+    index: input.index
+  });
+  const sourceVideoMotion = buildVideoMotionScale({ width, height, index: input.index });
+  const overlay = buildSubtitleOverlay({
+    shot: input.shot,
+    aspectRatio: input.aspectRatio,
+    index: input.index
+  });
+  const imageVideoFilter = [
+    imageMotion,
+    "eq=contrast=1.05:saturation=1.10",
+    overlay,
+    "format=yuv420p"
+  ].join(",");
+  const sourceVideoFilter = [
+    sourceVideoMotion,
+    "eq=contrast=1.05:saturation=1.10",
+    overlay,
     "format=yuv420p"
   ].join(",");
 
@@ -211,7 +304,7 @@ const renderMaterialClip = async (input: {
       "-i",
       sourceUrl,
       "-vf",
-      commonVideoFilter,
+      imageVideoFilter,
       "-movflags",
       "+faststart",
       outputPath
@@ -229,7 +322,7 @@ const renderMaterialClip = async (input: {
     "-i",
     sourceUrl,
     "-vf",
-    commonVideoFilter,
+    sourceVideoFilter,
     "-an",
     "-movflags",
     "+faststart",
@@ -315,6 +408,114 @@ const renderFallbackShotClip = async (input: {
       y: "h*0.765",
       lineHeight: subtitleSize + 10,
       box: false
+    }),
+    "format=yuv420p"
+  ].join(",");
+
+  await execa("ffmpeg", [
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    filter,
+    "-t",
+    String(durationSeconds),
+    "-movflags",
+    "+faststart",
+    outputPath
+  ]);
+  return outputPath;
+};
+
+const renderDynamicFallbackShotClip = async (input: {
+  shot: StoryboardShot;
+  aspectRatio: VideoAspectRatio;
+  outputDir: string;
+  index: number;
+}) => {
+  const resolution = getResolution(input.aspectRatio);
+  const [width, height] = resolution.split("x").map(Number) as [number, number];
+  const durationSeconds = Math.max(1.2, Math.min(5, input.shot.durationMs / 1000));
+  const outputPath = path.join(input.outputDir, `dynamic-fallback-${input.index}.mp4`);
+  const palette = shotPalettes[input.index % shotPalettes.length] ?? shotPalettes[0]!;
+  const stage = shotStages[input.index] ?? "SHOT";
+  const subtitleLines = wrapText(
+    input.shot.subtitle,
+    input.aspectRatio === "HORIZONTAL_16_9" ? 54 : 28,
+    2
+  );
+  const detailLines = wrapText(
+    input.shot.materialQuery,
+    input.aspectRatio === "HORIZONTAL_16_9" ? 34 : 20,
+    2
+  );
+  const stageSize = input.aspectRatio === "HORIZONTAL_16_9" ? 24 : 22;
+  const detailSize = input.aspectRatio === "HORIZONTAL_16_9" ? 24 : 22;
+  const subtitleSize = input.aspectRatio === "HORIZONTAL_16_9" ? 28 : 27;
+  const movingBox = (base: number, amplitude: number, speed: number, phase = 0) =>
+    `${base}+${amplitude}*sin(t*${speed}+${phase})`;
+  const productX = Math.round(width * (input.index % 2 === 0 ? 0.31 : 0.43));
+  const productY = Math.round(height * 0.24);
+  const productW = Math.round(width * 0.28);
+  const productH = Math.round(height * 0.34);
+  const proofPanelX = Math.round(width * 0.1);
+  const proofPanelY = Math.round(height * 0.58);
+  const proofPanelW = Math.round(width * 0.8);
+  const proofPanelH = Math.round(height * 0.12);
+  const sweepWidth = Math.round(width * 0.2);
+  const sweepTravel = width + Math.round(width * 0.38);
+  const subtitlePanelY = Math.round(height * 0.78);
+  const subtitlePanelH = height - subtitlePanelY;
+  const bottleNeckW = Math.round(productW * 0.34);
+  const bottleNeckH = Math.round(productH * 0.18);
+  const bottleBodyW = Math.round(productW * 0.7);
+  const bottleBodyH = Math.round(productH * 0.72);
+  const capH = Math.round(productH * 0.08);
+  const beforeAfterEnabled = input.index === 0 || input.index === 2;
+  const ctaEnabled = input.index >= 3;
+  const filter = [
+    `color=c=${palette.bg}:s=${width}x${height}:r=${FPS}:d=${durationSeconds}`,
+    `drawbox=x=0:y=0:w=${width}:h=${height}:color=${palette.bg}:t=fill`,
+    `drawbox=x='${movingBox(Math.round(width * 0.07), 18, 2.1)}':y='${movingBox(Math.round(height * 0.1), 10, 1.5, 1.57)}':w=${Math.round(width * 0.86)}:h=${Math.round(height * 0.64)}:color=${palette.panel}@0.30:t=fill`,
+    `drawbox=x=${Math.round(width * 0.06)}:y=${Math.round(height * 0.06)}:w=${Math.round(width * 0.36)}:h=${Math.round(height * 0.05)}:color=black@0.28:t=fill`,
+    `drawtext=text='${escapeDrawText(stage)}':fontcolor=${palette.accent}:fontsize=${stageSize}:x=w*0.09:y=h*0.072:enable='${between(0, 1.6)}'`,
+    `drawbox=x='${movingBox(productX, 24, 2.8)}':y='${movingBox(productY, 14, 1.8, 1.57)}':w=${productW}:h=${productH}:color=white@0.12:t=fill`,
+    `drawbox=x='${movingBox(productX + Math.round(productW * 0.33), 17, 3.1)}':y='${movingBox(productY - capH, 10, 2.2, 1.57)}':w=${bottleNeckW}:h=${bottleNeckH}:color=white@0.78:t=fill`,
+    `drawbox=x='${movingBox(productX + Math.round(productW * 0.15), 18, 3.1)}':y='${movingBox(productY + Math.round(productH * 0.13), 12, 2.2, 1.57)}':w=${bottleBodyW}:h=${bottleBodyH}:color=${palette.halo}@0.78:t=fill`,
+    `drawbox=x='${movingBox(productX + Math.round(productW * 0.22), 16, 3.8)}':y='${movingBox(productY + Math.round(productH * 0.2), 10, 2.4, 1.57)}':w=${Math.round(productW * 0.56)}:h=${Math.round(productH * 0.24)}:color=white@0.24:t=fill`,
+    `drawbox=x='${movingBox(productX + Math.round(productW * 0.26), 14, 3.8)}':y='${movingBox(productY + Math.round(productH * 0.47), 9, 2.4, 1.57)}':w=${Math.round(productW * 0.48)}:h=${Math.round(productH * 0.04)}:color=black@0.24:t=fill`,
+    `drawbox=x='${movingBox(productX + Math.round(productW * 0.3), 13, 3.8)}':y='${movingBox(productY + Math.round(productH * 0.56), 9, 2.4, 1.57)}':w=${Math.round(productW * 0.4)}:h=${Math.round(productH * 0.035)}:color=black@0.18:t=fill`,
+    `drawbox=x='mod(t*${Math.round(width * 0.42)}\\,${sweepTravel})-${Math.round(width * 0.38)}':y=0:w=${sweepWidth}:h=${height}:color=white@0.08:t=fill`,
+    `drawbox=x=${proofPanelX}:y='${movingBox(proofPanelY, 8, 1.9)}':w=${proofPanelW}:h=${proofPanelH}:color=black@0.30:t=fill`,
+    ...(beforeAfterEnabled
+      ? [
+          `drawbox=x=${Math.round(width * 0.12)}:y=${Math.round(height * 0.52)}:w=${Math.round(width * 0.31)}:h=${Math.round(height * 0.15)}:color=white@0.16:t=fill`,
+          `drawbox=x=${Math.round(width * 0.57)}:y=${Math.round(height * 0.52)}:w=${Math.round(width * 0.31)}:h=${Math.round(height * 0.15)}:color=${palette.accent}@0.28:t=fill`,
+          `drawtext=text='BEFORE':fontcolor=white@0.72:fontsize=${Math.max(16, detailSize - 4)}:x=w*0.18:y=h*0.545`,
+          `drawtext=text='AFTER':fontcolor=white@0.90:fontsize=${Math.max(16, detailSize - 4)}:x=w*0.64:y=h*0.545`
+        ]
+      : []),
+    ...(ctaEnabled
+      ? [
+          `drawbox=x=${Math.round(width * 0.16)}:y=${Math.round(height * 0.52)}:w=${Math.round(width * 0.68)}:h=${Math.round(height * 0.11)}:color=${palette.accent}@0.42:t=fill`,
+          `drawtext=text='SHOP NOW':fontcolor=white:fontsize=${Math.max(24, detailSize + 6)}:x=(w-text_w)/2:y=h*0.55`
+        ]
+      : []),
+    drawTextLines({
+      lines: detailLines,
+      fontSize: detailSize,
+      y: "h*0.65",
+      lineHeight: detailSize + 8,
+      x: "w*0.14",
+      box: false
+    }),
+    `drawbox=x=0:y=${subtitlePanelY}:w=${width}:h=${subtitlePanelH}:color=black@0.34:t=fill`,
+    drawTextLines({
+      lines: subtitleLines,
+      fontSize: subtitleSize,
+      y: "h*0.835",
+      lineHeight: subtitleSize + 10,
+      box: true
     }),
     "format=yuv420p"
   ].join(",");
@@ -434,6 +635,7 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
   );
 
   const clipPaths: string[] = [];
+  let renderSource: VideoRenderSource = "STORYBOARD_FALLBACK";
   for (const shot of input.shots) {
     const material = materialByOrder.get(shot.order);
     if (!material) {
@@ -455,16 +657,35 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
   }
 
   if (clipPaths.length === 0) {
+    renderSource = "DYNAMIC_FALLBACK";
     for (const shot of input.shots) {
       clipPaths.push(
-        await renderFallbackShotClip({
+        await renderDynamicFallbackShotClip({
           shot,
           aspectRatio: input.aspectRatio,
           outputDir: input.outputDir,
           index: clipPaths.length
+        }).catch((error: unknown) => {
+          if (process.env.VIDEOPILOT_RENDER_DEBUG === "true") {
+            console.warn(
+              "Dynamic fallback render failed; using storyboard fallback.",
+              error instanceof Error ? error.message : error
+            );
+          }
+          renderSource = "STORYBOARD_FALLBACK";
+          return renderFallbackShotClip({
+            shot,
+            aspectRatio: input.aspectRatio,
+            outputDir: input.outputDir,
+            index: clipPaths.length
+          });
         })
       );
     }
+  } else {
+    renderSource = input.materials?.some((material) => material.kind === "remote-video")
+      ? "ARK_GENERATED"
+      : "MATERIAL_MIX";
   }
 
   if (clipPaths.length > 0) {
@@ -523,7 +744,8 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
     filePath: outputPath,
     coverPath,
     durationMs,
-    resolution
+    resolution,
+    renderSource
   };
 };
 

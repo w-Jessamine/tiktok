@@ -12,6 +12,8 @@
     "check": "pnpm run ci",
     "ci": "pnpm format:check && pnpm stylelint && pnpm lint && pnpm prisma:validate && pnpm prisma:generate && pnpm typecheck && pnpm test && pnpm build",
     "dev": "pnpm -r --parallel dev",
+    "ark:smoke": "pnpm --filter @videopilot/shared build && pnpm --filter @videopilot/ai build && node scripts/ark-smoke.mjs",
+    "demo:videos": "pnpm --filter @videopilot/shared build && pnpm --filter @videopilot/ai build && pnpm --filter @videopilot/video build && node scripts/render-commerce-demos.mjs",
     "lint": "pnpm -r lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

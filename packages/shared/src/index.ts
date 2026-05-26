@@ -26,6 +26,12 @@ export const complianceStatusSchema = z.enum([
 ]);
 export const complianceObjectTypeSchema = z.enum(["ASSET", "SCRIPT", "SHOT", "VIDEO_EXPORT"]);
 export const analyticsSourceSchema = z.enum(["MANUAL", "CSV", "MOCK", "EXTERNAL"]);
+export const videoRenderSourceSchema = z.enum([
+  "ARK_GENERATED",
+  "MATERIAL_MIX",
+  "DYNAMIC_FALLBACK",
+  "STORYBOARD_FALLBACK"
+]);
 
 export const productCreateSchema = z.object({
   title: z.string().min(2),
@@ -196,6 +202,7 @@ export type JobStatus = z.infer<typeof jobStatusSchema>;
 export type VideoAspectRatio = z.infer<typeof aspectRatioSchema>;
 export type ComplianceStatus = z.infer<typeof complianceStatusSchema>;
 export type ComplianceObjectType = z.infer<typeof complianceObjectTypeSchema>;
+export type VideoRenderSource = z.infer<typeof videoRenderSourceSchema>;
 export type ProductCreateInput = z.infer<typeof productCreateSchema>;
 export type AssetCreateInput = z.infer<typeof assetCreateSchema>;
 export type StoryboardShot = z.infer<typeof storyboardShotSchema>;
@@ -231,6 +238,19 @@ export type GenerationJobDto = {
   retryCount: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type VideoExportDto = {
+  id: string;
+  scriptId: string;
+  aspectRatio: VideoAspectRatio;
+  resolution: string;
+  durationMs: number;
+  fileUrl: string;
+  coverUrl?: string | null;
+  renderSource: VideoRenderSource;
+  config: Record<string, unknown>;
+  createdAt?: string;
 };
 
 export type ApiEnvelope<T> = {

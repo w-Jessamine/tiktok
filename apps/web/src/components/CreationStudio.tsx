@@ -1,9 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Film, FlaskConical, Play, Trophy, Volume2 } from "lucide-react";
 import { useState } from "react";
-import { api, type ProductDto } from "../lib/api";
+import { api, type ProductDto, type VideoExportDto } from "../lib/api";
 import { useAppStore } from "../lib/store";
 import { Button, Panel, Select, StatusPill } from "./ui";
+
+const renderSourceCopy = {
+  ARK_GENERATED: {
+    label: "Ark generated",
+    tone: "good" as const,
+    description: "Shot clips came from the Ark video provider and were assembled for export."
+  },
+  MATERIAL_MIX: {
+    label: "Material mix",
+    tone: "good" as const,
+    description: "Export uses merchant/uploaded product materials with motion, subtitles and audio."
+  },
+  DYNAMIC_FALLBACK: {
+    label: "Fallback preview",
+    tone: "warn" as const,
+    description:
+      "This is a local animated storyboard preview. Use real product media or Ark video for final visual quality."
+  },
+  STORYBOARD_FALLBACK: {
+    label: "Storyboard fallback",
+    tone: "bad" as const,
+    description:
+      "This is the last-resort text storyboard path and should not be used as the final demo output."
+  }
+};
 
 export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
   const queryClient = useQueryClient();
@@ -209,35 +234,7 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
           ))}
 
           {exportsQuery.data?.map((item) => (
-            <article
-              key={item.id}
-              className="grid gap-4 rounded-md border border-ink/10 p-4 lg:grid-cols-[220px_1fr]"
-            >
-              <div className="aspect-[9/16] overflow-hidden rounded-md bg-ink">
-                <video
-                  src={item.fileUrl}
-                  poster={item.coverUrl ?? undefined}
-                  controls
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="grid content-start gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <StatusPill tone="good">{item.aspectRatio}</StatusPill>
-                  <StatusPill>{item.resolution}</StatusPill>
-                  <StatusPill>{(item.durationMs / 1000).toFixed(1)}s</StatusPill>
-                </div>
-                <p className="text-sm text-ink/65">
-                  Export is ready for TikTok Shop listing posts, ads experiments or merchant review.
-                </p>
-                <a href={item.fileUrl} target="_blank" rel="noreferrer">
-                  <Button variant="secondary">
-                    <Download className="h-4 w-4" />
-                    Open export
-                  </Button>
-                </a>
-              </div>
-            </article>
+            <ExportCard key={item.id} item={item} />
           ))}
           {!exportsQuery.data?.length && variants.length === 0 && (
             <div className="rounded-md border border-dashed border-ink/20 p-8 text-center text-sm text-ink/60">
@@ -247,5 +244,36 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
         </div>
       </Panel>
     </div>
+  );
+};
+
+const ExportCard = ({ item }: { item: VideoExportDto }) => {
+  const source = renderSourceCopy[item.renderSource] ?? renderSourceCopy.STORYBOARD_FALLBACK;
+  return (
+    <article className="grid gap-4 rounded-md border border-ink/10 p-4 lg:grid-cols-[220px_1fr]">
+      <div className="aspect-[9/16] overflow-hidden rounded-md bg-ink">
+        <video
+          src={item.fileUrl}
+          poster={item.coverUrl ?? undefined}
+          controls
+          className="h-full w-full object-cover"
+        />
+      </div>
+      <div className="grid content-start gap-3">
+        <div className="flex flex-wrap gap-2">
+          <StatusPill tone={source.tone}>{source.label}</StatusPill>
+          <StatusPill tone="good">{item.aspectRatio}</StatusPill>
+          <StatusPill>{item.resolution}</StatusPill>
+          <StatusPill>{(item.durationMs / 1000).toFixed(1)}s</StatusPill>
+        </div>
+        <p className="text-sm text-ink/65">{source.description}</p>
+        <a href={item.fileUrl} target="_blank" rel="noreferrer">
+          <Button variant="secondary">
+            <Download className="h-4 w-4" />
+            Open export
+          </Button>
+        </a>
+      </div>
+    </article>
   );
 };

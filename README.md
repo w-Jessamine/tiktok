@@ -58,10 +58,16 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm ark:smoke
+pnpm demo:videos
 docker compose up
 ```
 
 The Docker Compose path runs Postgres, Redis, MinIO, API, worker and web services together. The worker container installs FFmpeg for video composition.
+
+`pnpm demo:videos` renders three local vertical commerce-video previews under `storage/demo-commerce-dynamic` without requiring Docker, Redis or database services. These files are dynamic fallback previews for quick visual checks; the target generation path still prioritizes Ark Seedance shot clips and merchant-owned video materials.
+
+`pnpm ark:smoke` validates the Ark text-generation path using only local environment variables and prints script metadata. Run `pnpm ark:smoke -- --video` only when you intentionally want to spend video-generation quota; the script prints redacted task/status/URL shape information and never prints API keys or raw payloads.
 
 ## Engineering Workflow
 
@@ -103,7 +109,7 @@ S3_SECRET_ACCESS_KEY=minioadmin
 4. Generate three conversion-oriented scripts from product data and optional Prompt guidance.
 5. Edit storyboard shots: reorder, change duration, adjust subtitles, update material queries or regenerate one shot.
 6. Run one-click video creation in vertical 9:16 or horizontal 16:9.
-7. Worker tries Ark async video generation, then falls back to uploaded material mixing or storyboard composite rendering.
+7. Worker tries Ark async video generation, then falls back to uploaded material mixing or dynamic storyboard preview rendering.
 8. Optionally enable TTS/BGM audio mix, or generate A/B variants that compare hook, style, CTA, subtitle density and voice tone.
 9. Watch job progress and trace events, then preview/download the exported MP4.
 10. Review compliance status and use manual approval for demo assets that pass source/authenticity checks.
@@ -144,6 +150,7 @@ P1:
 - Real slice thumbnail extraction for uploaded video assets
 - Optional TTS/BGM audio mix with deterministic fallback providers
 - Material-aware FFmpeg mixing
+- Export source labels for Ark-generated, material-mix and fallback-preview outputs
 - Generation trace and retry
 - Factor metric backflow board with manual and CSV ingestion
 - A/B creative variants and rules-based compliance review
