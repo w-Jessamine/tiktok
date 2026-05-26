@@ -106,7 +106,13 @@ Regenerates one storyboard shot prompt/material query.
 
 `GET /api/videos/exports?scriptId=...`
 
-Lists rendered exports.
+Lists rendered exports. Each export includes `renderSource`:
+
+- `ARK_GENERATED`: every storyboard shot was rendered from Ark video clips.
+- `HYBRID_MIX`: output combines Ark clips, merchant material, or local fallback shots.
+- `MATERIAL_MIX`: output uses uploaded/merchant-owned media with FFmpeg motion and subtitles.
+- `DYNAMIC_FALLBACK`: local animated storyboard preview; not an Ark/Seedance output.
+- `STORYBOARD_FALLBACK`: last-resort text storyboard rendering; not final visual quality.
 
 ## Jobs
 

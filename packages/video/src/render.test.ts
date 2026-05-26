@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMockRenderFilter,
   generateVideoThumbnail,
+  getRenderSourceFromClipStats,
   getDurationMs,
   getResolution
 } from "./index";
@@ -49,5 +50,44 @@ describe("video helpers", () => {
 
   it("exports thumbnail helper as part of the video toolkit", () => {
     expect(typeof generateVideoThumbnail).toBe("function");
+  });
+
+  it("labels render sources from actual successful clips instead of requested materials", () => {
+    expect(
+      getRenderSourceFromClipStats(
+        {
+          arkClips: 5,
+          materialClips: 0,
+          fallbackClips: 0,
+          failedMaterialClips: 0,
+          totalClips: 5
+        },
+        5
+      )
+    ).toBe("ARK_GENERATED");
+    expect(
+      getRenderSourceFromClipStats(
+        {
+          arkClips: 1,
+          materialClips: 3,
+          fallbackClips: 1,
+          failedMaterialClips: 0,
+          totalClips: 5
+        },
+        5
+      )
+    ).toBe("HYBRID_MIX");
+    expect(
+      getRenderSourceFromClipStats(
+        {
+          arkClips: 0,
+          materialClips: 0,
+          fallbackClips: 5,
+          failedMaterialClips: 0,
+          totalClips: 5
+        },
+        5
+      )
+    ).toBe("DYNAMIC_FALLBACK");
   });
 });

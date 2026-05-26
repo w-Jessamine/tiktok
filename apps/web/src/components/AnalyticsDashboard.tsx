@@ -99,7 +99,7 @@ export const AnalyticsDashboard = () => {
       </Panel>
 
       <div className="grid gap-5">
-        <Panel title="Data Backflow">
+        <Panel title="Manual Demo Metrics">
           <div className="grid gap-3">
             <Input
               value={factor}
@@ -130,17 +130,17 @@ export const AnalyticsDashboard = () => {
             </div>
             <Button disabled={createMetric.isPending} onClick={() => createMetric.mutate()}>
               <Plus className="h-4 w-4" />
-              Feed metric
+              Feed manual demo metric
             </Button>
           </div>
         </Panel>
 
-        <Panel title="CSV Import">
+        <Panel title="CSV Sample Import">
           <div className="grid gap-3">
             <Textarea value={csvText} onChange={(event) => setCsvText(event.target.value)} />
             <Button disabled={importMetrics.isPending} onClick={() => importMetrics.mutate()}>
               <Upload className="h-4 w-4" />
-              Import CSV sample
+              Import CSV sample data
             </Button>
           </div>
         </Panel>

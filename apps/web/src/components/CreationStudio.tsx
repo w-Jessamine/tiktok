@@ -7,26 +7,39 @@ import { Button, Panel, Select, StatusPill } from "./ui";
 
 const renderSourceCopy = {
   ARK_GENERATED: {
-    label: "Ark generated",
+    label: "Ark/Seedance generated",
     tone: "good" as const,
-    description: "Shot clips came from the Ark video provider and were assembled for export."
+    description:
+      "Every storyboard shot was rendered from Ark video clips and assembled for export.",
+    action: "Open Ark export"
+  },
+  HYBRID_MIX: {
+    label: "Hybrid mix",
+    tone: "warn" as const,
+    description:
+      "This export combines Ark clips, merchant material, or local fallback shots. Read the job trace before treating it as a full Seedance result.",
+    action: "Open hybrid preview"
   },
   MATERIAL_MIX: {
     label: "Material mix",
     tone: "good" as const,
-    description: "Export uses merchant/uploaded product materials with motion, subtitles and audio."
+    description:
+      "Export uses merchant/uploaded product materials with motion, subtitles and audio.",
+    action: "Open material-mix export"
   },
   DYNAMIC_FALLBACK: {
-    label: "Fallback preview",
+    label: "Local fallback preview",
     tone: "warn" as const,
     description:
-      "This is a local animated storyboard preview. Use real product media or Ark video for final visual quality."
+      "This is a local animated storyboard preview. Use real product media or Ark video for final visual quality.",
+    action: "Open fallback preview"
   },
   STORYBOARD_FALLBACK: {
     label: "Storyboard fallback",
     tone: "bad" as const,
     description:
-      "This is the last-resort text storyboard path and should not be used as the final demo output."
+      "This is the last-resort text storyboard path and should not be used as the final demo output.",
+    action: "Open storyboard fallback"
   }
 };
 
@@ -114,7 +127,7 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[0.85fr_1.5fr]">
-      <Panel title="One-click Video Creation" action={<Film className="h-5 w-5 text-coral" />}>
+      <Panel title="Source-Labeled Video Export" action={<Film className="h-5 w-5 text-coral" />}>
         <div className="grid gap-4">
           <label className="grid gap-2 text-sm font-semibold">
             Product
@@ -180,7 +193,7 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
             onClick={() => generate.mutate()}
           >
             <Play className="h-4 w-4" />
-            {generate.isPending ? "Queuing..." : "Generate video"}
+            {generate.isPending ? "Queuing export..." : "Queue labeled export"}
           </Button>
           <Button
             variant="secondary"
@@ -188,18 +201,18 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
             onClick={() => createExperiment.mutate()}
           >
             <FlaskConical className="h-4 w-4" />
-            {createExperiment.isPending ? "Creating variants..." : "Generate A/B variants"}
+            {createExperiment.isPending ? "Creating variants..." : "Queue labeled A/B variants"}
           </Button>
         </div>
       </Panel>
 
-      <Panel title="Preview & Export">
+      <Panel title="Preview & Export Source">
         <div className="grid gap-4">
           {variants.length > 0 && (
             <div className="rounded-md border border-mint/30 bg-mint/5 p-4">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Trophy className="h-4 w-4 text-mint" />
-                <strong>Experiment winner</strong>
+                <strong>Demo winner estimate</strong>
                 {winner && <StatusPill tone="good">{winner.name}</StatusPill>}
               </div>
               <p className="text-sm text-ink/65">
@@ -238,7 +251,8 @@ export const CreationStudio = ({ products }: { products: ProductDto[] }) => {
           ))}
           {!exportsQuery.data?.length && variants.length === 0 && (
             <div className="rounded-md border border-dashed border-ink/20 p-8 text-center text-sm text-ink/60">
-              Generated exports and A/B variants appear here after the worker finishes rendering.
+              Labeled exports appear here after rendering. Check the source pill before treating any
+              MP4 as an Ark/Seedance output.
             </div>
           )}
         </div>
@@ -270,7 +284,7 @@ const ExportCard = ({ item }: { item: VideoExportDto }) => {
         <a href={item.fileUrl} target="_blank" rel="noreferrer">
           <Button variant="secondary">
             <Download className="h-4 w-4" />
-            Open export
+            {source.action}
           </Button>
         </a>
       </div>

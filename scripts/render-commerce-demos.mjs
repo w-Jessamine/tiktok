@@ -46,6 +46,10 @@ const demoProducts = [
 
 await mkdir(outputRoot, { recursive: true });
 
+console.warn(
+  "[demo:fallback-videos] This command renders local DYNAMIC_FALLBACK storyboard previews only. It does not call Ark/Seedance. Use `pnpm demo:ark-video` for a real Ark video smoke."
+);
+
 for (const product of demoProducts) {
   const [script] = await provider.generateScripts({
     product,

@@ -74,6 +74,7 @@ const renderSourceFromConfig = (config: unknown) => {
   const source = asRecord(config).source;
   if (
     source === "ARK_GENERATED" ||
+    source === "HYBRID_MIX" ||
     source === "MATERIAL_MIX" ||
     source === "DYNAMIC_FALLBACK" ||
     source === "STORYBOARD_FALLBACK"
@@ -110,6 +111,15 @@ export const registerVideoRoutes = async (app: FastifyInstance) => {
       where: { id: input.scriptId },
       include: { shots: true }
     });
+    if (script.productId !== input.productId) {
+      return reply.code(409).send({
+        error: {
+          message: "Script does not belong to the selected product.",
+          code: "SCRIPT_PRODUCT_MISMATCH"
+        },
+        requestId: request.id
+      });
+    }
     const assetIssues = await prisma.asset.count({
       where: { productId: input.productId, complianceStatus: { not: "APPROVED" } }
     });

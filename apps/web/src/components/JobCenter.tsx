@@ -17,6 +17,28 @@ const toneFor = (status?: string) => {
   return "neutral" as const;
 };
 
+const readMeta = (value: unknown) =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const getTraceSummary = (job?: {
+  output?: Record<string, unknown>;
+  trace: Array<{ meta?: Record<string, unknown> }>;
+}) => {
+  const providerMeta = job?.trace.map((event) => event.meta).find((meta) => meta?.provider);
+  const shotFallback = job?.trace
+    .map((event) => event.meta)
+    .find((meta) => meta?.fallbackReason)?.fallbackReason;
+  const exportMeta = job?.trace.map((event) => event.meta).find((meta) => meta?.source);
+  return {
+    provider: String(providerMeta?.provider ?? "unknown"),
+    videoMode: String(providerMeta?.videoMode ?? "not reported"),
+    finalSource: String(exportMeta?.source ?? readMeta(job?.output).source ?? "pending"),
+    fallbackReason: shotFallback ? String(shotFallback) : undefined
+  };
+};
+
 export const JobCenter = () => {
   const activeJobId = useAppStore((state) => state.activeJobId);
   const jobQuery = useQuery({
@@ -35,7 +57,7 @@ export const JobCenter = () => {
   const job = jobQuery.data;
 
   return (
-    <Panel title="Generation Task Trace" action={<Activity className="h-5 w-5 text-mint" />}>
+    <Panel title="Provider & Render Trace" action={<Activity className="h-5 w-5 text-mint" />}>
       {job ? (
         <div className="grid gap-5">
           <div className="grid gap-3 rounded-md bg-mist p-4">
@@ -56,10 +78,27 @@ export const JobCenter = () => {
               <span>{job.type}</span>
               <span>{job.progress}%</span>
             </div>
+            <div className="grid gap-2 rounded-md bg-white p-3 text-sm text-ink/70">
+              {(() => {
+                const summary = getTraceSummary(job);
+                return (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusPill>Provider {summary.provider}</StatusPill>
+                      <StatusPill>{summary.videoMode}</StatusPill>
+                      <StatusPill tone={summary.finalSource.includes("FALLBACK") ? "warn" : "good"}>
+                        Final {summary.finalSource}
+                      </StatusPill>
+                    </div>
+                    {summary.fallbackReason && <p>Fallback reason: {summary.fallbackReason}</p>}
+                  </>
+                );
+              })()}
+            </div>
             {(job.status === "FAILED" || job.status === "RETRYABLE") && (
               <Button variant="secondary" disabled={retry.isPending} onClick={() => retry.mutate()}>
                 <RotateCcw className="h-4 w-4" />
-                Retry
+                Retry provider/render job
               </Button>
             )}
           </div>
@@ -74,13 +113,18 @@ export const JobCenter = () => {
                   <span className="text-xs text-ink/45">{new Date(event.at).toLocaleString()}</span>
                 </div>
                 <p className="mt-1 text-sm text-ink/65">{event.message}</p>
+                {event.meta && Object.keys(event.meta).length > 0 && (
+                  <pre className="mt-2 max-h-40 overflow-auto rounded bg-mist p-2 text-xs text-ink/70">
+                    {JSON.stringify(event.meta, null, 2)}
+                  </pre>
+                )}
               </div>
             ))}
           </div>
         </div>
       ) : (
         <div className="rounded-md border border-dashed border-ink/20 p-8 text-center text-sm text-ink/60">
-          Upload assets, regenerate a shot, or create a video to see live task progress.
+          Queue an export to see provider attempts, fallback decisions, and final render source.
         </div>
       )}
     </Panel>

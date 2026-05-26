@@ -38,7 +38,9 @@ export const App = () => {
             </div>
             <div>
               <h1 className="text-lg font-black">TikTok Shop VideoPilot</h1>
-              <p className="text-sm text-ink/60">AIGC product video generation workspace</p>
+              <p className="text-sm text-ink/60">
+                AIGC workflow with labeled Ark/material/fallback exports
+              </p>
             </div>
           </div>
           <nav className="flex flex-wrap gap-2">
@@ -66,11 +68,12 @@ export const App = () => {
           <div>
             <p className="text-sm font-semibold uppercase text-mint">End-to-end merchant demo</p>
             <h2 className="mt-2 text-2xl font-black text-ink">
-              Material to script to 15-second export
+              Material to script to source-labeled export
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/65">
               Build product asset memory, generate conversion scripts, edit storyboard shots, render
-              previews, and inspect generation trace from one operational surface.
+              previews, and inspect provider/fallback trace from one operational surface. Every MP4
+              states whether it came from Ark, merchant material, or local fallback rendering.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">

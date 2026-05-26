@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createAiProvider, MockAiProvider, writeArkVideoDebugSample } from "./index";
+import {
+  createAiProvider,
+  MockAiProvider,
+  parseArkVideoTaskPayload,
+  writeArkVideoDebugSample
+} from "./index";
 
 describe("AI providers", () => {
   it("falls back to mock when hybrid env has no secret", async () => {
@@ -48,5 +53,52 @@ describe("AI providers", () => {
     expect(sample.statusPaths).toContain("status");
     expect(sample.urlPaths).toContain("content.video_url");
     expect(JSON.stringify(sample)).not.toContain("should-not-be-saved");
+  });
+
+  it("parses Ark video task payloads without treating cover images as video", async () => {
+    const parsed = await parseArkVideoTaskPayload({
+      data: {
+        task_id: "task-real",
+        status: "succeeded",
+        output: {
+          video_url: "https://example.test/result.mp4?token=redacted",
+          video_cover_url: "https://example.test/video-cover.jpg?token=redacted"
+        }
+      }
+    });
+    expect(parsed.taskId).toBe("task-real");
+    expect(parsed.status).toBe("succeeded");
+    expect(parsed.artifacts.find((artifact) => artifact.kind === "video")?.url).toContain(
+      "result.mp4"
+    );
+    expect(parsed.artifacts.find((artifact) => artifact.path.includes("cover"))?.kind).toBe(
+      "cover"
+    );
+  });
+
+  it("hybrid shot generation exposes sanitized fallback reasons", async () => {
+    const provider = createAiProvider({
+      AI_PROVIDER: "hybrid",
+      ARK_API_KEY: "unit-test-secret-value",
+      ARK_TEXT_MODEL: "unit-test-model-value"
+    } as NodeJS.ProcessEnv);
+    const result = await provider.generateShotVideo({
+      productTitle: "Desk Lamp",
+      aspectRatio: "VERTICAL_9_16",
+      shot: {
+        order: 0,
+        durationMs: 2000,
+        visualPrompt: "show the lamp on a desk",
+        cameraMotion: "slow push",
+        materialQuery: "lamp desk",
+        subtitle: "Brighten the desk",
+        voiceover: "Brighten the desk",
+        bgmMood: "upbeat"
+      }
+    });
+    expect(result.provider).toBe("mock");
+    expect(result.fallbackReason).toContain("ARK_VIDEO_MODEL");
+    expect(result.note).not.toContain("unit-test-secret-value");
+    expect(result.note).not.toContain("unit-test-model-value");
   });
 });

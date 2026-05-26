@@ -2,7 +2,7 @@ import path from "node:path";
 import { createAiProvider, createBgmProvider, createTtsProvider } from "@videopilot/ai";
 import { renderStoryboardVideo, type RenderMaterial } from "@videopilot/video";
 import type { VideoAspectRatio } from "@videopilot/shared";
-import { config } from "../config";
+import { config, getAiRuntimeDiagnostics } from "../config";
 import { prisma } from "../db";
 import { appendTrace, updateJob } from "../services/job-trace";
 import { workerOutputRoot } from "../services/paths";
@@ -34,12 +34,28 @@ const vectorFromJson = (value: unknown): number[] => {
   return value.filter((item): item is number => typeof item === "number");
 };
 
-const inferMaterialKind = (url: string): RenderMaterial["kind"] => {
-  if (/^https?:\/\//i.test(url)) {
+const inferMaterialKind = (
+  url: string,
+  source: RenderMaterial["source"] = "merchant"
+): RenderMaterial["kind"] => {
+  if (source === "ark" && /^https?:\/\//i.test(url)) {
     return "remote-video";
+  }
+  if (/^https?:\/\//i.test(url)) {
+    return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url) ? "video" : "image";
   }
   return /\.(mp4|mov|webm|m4v)$/i.test(url) ? "video" : "image";
 };
+
+const isPublicHttpUrl = (url?: string | null) => Boolean(url && /^https?:\/\//i.test(url));
+
+const isLikelyImageAsset = (asset?: { type: string; url: string } | null) =>
+  Boolean(
+    asset &&
+    (asset.type === "PRODUCT_IMAGE" || asset.type === "REFERENCE_IMAGE") &&
+    isPublicHttpUrl(asset.url) &&
+    /\.(png|jpe?g|webp|gif)(\?|$)/i.test(asset.url)
+  );
 
 const localPublicUrl = (filePath: string) => {
   const normalized = filePath.replace(/\\/g, "/");
@@ -81,6 +97,11 @@ export const processVideoGeneration = async (data: {
   const renderMaterials: RenderMaterial[] = [];
   const audioOutputDir = path.resolve(workerOutputRoot, "audio", data.jobId);
   const voicePaths: string[] = [];
+  const diagnostics = getAiRuntimeDiagnostics();
+  await appendTrace(data.jobId, "provider", "AI provider runtime configuration checked.", {
+    ...diagnostics,
+    hasArkKey: diagnostics.hasArkKey ? "configured" : "missing"
+  });
 
   await updateJob(data.jobId, { progress: 25 });
   for (const shot of script.shots) {
@@ -91,6 +112,7 @@ export const processVideoGeneration = async (data: {
       queryEmbeddings.set(queryText, queryEmbedding);
     }
     const selected = slices
+      .filter((slice) => slice.isUsable)
       .map((slice) => {
         const haystack = `${slice.summary} ${slice.tags.join(" ")}`.toLowerCase();
         const keywords = shot.materialQuery.toLowerCase().split(/\s+/).filter(Boolean);
@@ -101,17 +123,21 @@ export const processVideoGeneration = async (data: {
         const similarity = cosineSimilarity(queryEmbedding, vectorFromJson(slice.embedding));
         return { slice, score: lexical * 2 + similarity };
       })
+      .filter((item) => item.score > 0.05)
       .sort((a, b) => b.score - a.score)[0]?.slice;
     await prisma.storyboardShot.update({
       where: { id: shot.id },
       data: { selectedSliceId: selected?.id ?? null }
     });
     const selectedAsset = selected ? assetsById.get(selected.assetId) : undefined;
+    const referenceImage = isLikelyImageAsset(selectedAsset)
+      ? selectedAsset
+      : assets.find((asset) => isLikelyImageAsset(asset));
     const generated = await ai.generateShotVideo({
       shot,
       aspectRatio: data.aspectRatio,
       productTitle: product.title,
-      imageUrl: assets[0]?.url
+      imageUrl: referenceImage?.url
     });
     await prisma.storyboardShot.update({
       where: { id: shot.id },
@@ -121,13 +147,15 @@ export const processVideoGeneration = async (data: {
       renderMaterials.push({
         shotOrder: shot.order,
         url: generated.url,
-        kind: "remote-video"
+        kind: inferMaterialKind(generated.url, "ark"),
+        source: "ark"
       });
     } else if (selectedAsset?.url) {
       renderMaterials.push({
         shotOrder: shot.order,
         url: selectedAsset.url,
-        kind: inferMaterialKind(selectedAsset.url),
+        kind: inferMaterialKind(selectedAsset.url, "merchant"),
+        source: "merchant",
         startMs: selected?.startMs,
         endMs: selected?.endMs
       });
@@ -139,6 +167,11 @@ export const processVideoGeneration = async (data: {
       {
         note: generated.note,
         status: generated.status,
+        taskId: generated.taskId,
+        artifactPath: generated.artifactPath,
+        fallbackReason: generated.fallbackReason,
+        referenceImageUsed: Boolean(referenceImage),
+        renderMaterialSource: generated.url ? "ark" : selectedAsset?.url ? "merchant" : "fallback",
         selectedSliceId: selected?.id
       }
     );
@@ -253,6 +286,8 @@ export const processVideoGeneration = async (data: {
         renderer: "ffmpeg",
         source: renderOutput.renderSource,
         materialCount: renderMaterials.length,
+        clipStats: renderOutput.clipStats,
+        provider: diagnostics.provider,
         audio: {
           voiceEnabled: Boolean(data.voiceEnabled),
           bgmEnabled: Boolean(data.bgmEnabled),
@@ -279,7 +314,9 @@ export const processVideoGeneration = async (data: {
   }
   await appendTrace(data.jobId, "export", "Video export is ready for preview and download.", {
     fileUrl,
-    durationMs: renderOutput.durationMs
+    durationMs: renderOutput.durationMs,
+    source: renderOutput.renderSource,
+    clipStats: renderOutput.clipStats
   });
   await updateJob(data.jobId, {
     status: "COMPLETED",

@@ -103,6 +103,10 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
               value={sourceStatement}
               onChange={(event) => setSourceStatement(event.target.value)}
             />
+            <span className="text-xs font-normal text-ink/55">
+              Required for material-mix exports. Reference assets are analyzed for structure and are
+              not proof of generation rights.
+            </span>
           </label>
           <Button disabled={!file || upload.isPending} onClick={() => upload.mutate()}>
             <UploadCloud className="h-4 w-4" />
@@ -136,9 +140,13 @@ export const AssetLibrary = ({ products }: { products: ProductDto[] }) => {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-semibold">{asset.filename}</h3>
+                  <p className="mt-1 text-xs uppercase tracking-wide text-ink/45">
+                    {asset.type.replace("_", " ")}
+                  </p>
                   <p className="text-sm text-ink/60">
                     {asset.videoSummary ?? "Waiting for multimodal analysis."}
                   </p>
+                  <p className="mt-2 text-xs text-ink/55">Source: {asset.sourceStatement}</p>
                 </div>
                 <StatusPill
                   tone={

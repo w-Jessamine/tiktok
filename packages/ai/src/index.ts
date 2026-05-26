@@ -42,6 +42,9 @@ export type VideoGenerationOutput = {
   taskId?: string;
   status?: ArkVideoTaskStatus | "fallback";
   note: string;
+  fallbackReason?: string;
+  artifactPath?: string;
+  artifactKind?: ArkVideoArtifact["kind"];
   raw?: unknown;
   debugSample?: ArkVideoDebugSample;
 };
@@ -377,6 +380,20 @@ const createCommerceScript = (input: CommerceScriptInput, angle: CommerceAngle):
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object" && !Array.isArray(value));
 
+const isPublicHttpUrl = (url?: string | null) => Boolean(url && /^https?:\/\//i.test(url));
+
+const isLikelyImageUrl = (url?: string | null) =>
+  Boolean(url && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url));
+
+const sanitizeErrorMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/ark-[A-Za-z0-9-]+/g, "ark-***")
+    .replace(/ep-\d{14}-[A-Za-z0-9]+/g, "ep-***")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer ***")
+    .slice(0, 320);
+};
+
 const redactPayloadShape = (payload: unknown): ArkVideoDebugSample => {
   const topLevelKeys = isRecord(payload) ? Object.keys(payload).sort() : [];
   const statusPaths: string[] = [];
@@ -431,6 +448,135 @@ export const writeArkVideoDebugSample = async (
   const filePath = path.join(outputDir, `${Date.now()}-ark-video-shape.json`);
   await writeFile(filePath, JSON.stringify(sample, null, 2));
   return { filePath, sample };
+};
+
+export const parseArkVideoTaskPayload = async (payload: unknown, saveDebugSample = false) => {
+  const debugSample =
+    saveDebugSample && process.env.ARK_VIDEO_DEBUG_SAMPLE === "true"
+      ? (await writeArkVideoDebugSample(payload)).sample
+      : redactPayloadShape(payload);
+  return {
+    taskId: extractArkTaskId(payload),
+    status: normalizeArkTaskStatus(extractArkTaskStatus(payload)),
+    artifacts: extractArkVideoArtifacts(payload),
+    ...extractArkTaskError(payload),
+    debugSample
+  } satisfies ArkVideoTaskPollResult;
+};
+
+const extractArkTaskStatus = (payload: unknown): string | undefined =>
+  findFirstString(payload, ["status", "state", "phase"]);
+
+const extractArkTaskId = (payload: unknown): string | undefined =>
+  findFirstString(payload, ["id", "task_id", "taskId", "taskID"]);
+
+const extractArkVideoArtifacts = (payload: unknown): ArkVideoArtifact[] => {
+  const artifacts: ArkVideoArtifact[] = [];
+  const visit = (value: unknown, currentPath: string, depth: number) => {
+    if (depth > 6) {
+      return;
+    }
+    if (typeof value === "string" && /^https?:\/\//i.test(value)) {
+      const lowerPath = currentPath.toLowerCase();
+      const lowerValue = value.toLowerCase();
+      const looksLikeCover =
+        lowerPath.includes("cover") ||
+        lowerPath.includes("poster") ||
+        lowerPath.includes("thumbnail") ||
+        /\.(png|jpe?g|webp|gif)(\?|$)/i.test(lowerValue);
+      const looksLikeVideo =
+        /\.(mp4|mov|webm|m3u8)(\?|$)/i.test(lowerValue) ||
+        ((lowerPath.includes("video_url") ||
+          lowerPath.endsWith(".video") ||
+          lowerPath.endsWith(".url")) &&
+          !looksLikeCover);
+      if (looksLikeCover) {
+        artifacts.push({ url: value, kind: "cover", path: currentPath });
+      } else if (looksLikeVideo) {
+        artifacts.push({ url: value, kind: "video", path: currentPath });
+      } else {
+        artifacts.push({ url: value, kind: "unknown", path: currentPath });
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${currentPath}[${index}]`, depth + 1));
+      return;
+    }
+    if (isRecord(value)) {
+      for (const [key, nested] of Object.entries(value)) {
+        visit(nested, currentPath ? `${currentPath}.${key}` : key, depth + 1);
+      }
+    }
+  };
+  visit(payload, "", 0);
+  const unique = new Map(artifacts.map((artifact) => [artifact.url, artifact]));
+  return [...unique.values()].sort((a, b) =>
+    a.kind === "video" ? -1 : b.kind === "video" ? 1 : 0
+  );
+};
+
+const extractArkTaskError = (payload: unknown): { errorCode?: string; message?: string } => ({
+  errorCode: findFirstString(payload, ["error_code", "errorCode", "code"]),
+  message: findFirstString(payload, ["message", "error", "reason"])
+});
+
+const findFirstString = (payload: unknown, keys: string[]): string | undefined => {
+  const queue: unknown[] = [payload];
+  const seen = new Set<unknown>();
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!isRecord(current) || seen.has(current)) {
+      continue;
+    }
+    seen.add(current);
+    for (const key of keys) {
+      const value = current[key];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+      if (typeof value === "number") {
+        return String(value);
+      }
+    }
+    for (const value of Object.values(current)) {
+      if (isRecord(value) || Array.isArray(value)) {
+        queue.push(value);
+      }
+    }
+    for (const value of Object.values(current)) {
+      if (Array.isArray(value)) {
+        value.forEach((item) => queue.push(item));
+      }
+    }
+  }
+  return undefined;
+};
+
+const normalizeArkTaskStatus = (status?: string): ArkVideoTaskStatus => {
+  const normalized = (status ?? "submitted").toLowerCase().replace(/[\s-]/g, "_");
+  if (["success", "succeeded", "completed", "done"].includes(normalized)) {
+    return "succeeded";
+  }
+  if (["fail", "failed", "error"].includes(normalized)) {
+    return "failed";
+  }
+  if (["content_review_failed", "review_failed", "audit_failed"].includes(normalized)) {
+    return "review_failed";
+  }
+  if (["cancel", "cancelled", "canceled"].includes(normalized)) {
+    return "cancelled";
+  }
+  if (["running", "processing", "generating"].includes(normalized)) {
+    return "running";
+  }
+  if (["queued", "pending", "created"].includes(normalized)) {
+    return "queued";
+  }
+  if (normalized === "submitted") {
+    return "submitted";
+  }
+  return "unknown";
 };
 
 export class MockAiProvider implements AiProvider {
@@ -615,6 +761,8 @@ export class ArkAiProvider implements AiProvider {
           taskId,
           url: videoArtifact.url,
           note: "Ark video task completed and returned a video URL.",
+          artifactPath: videoArtifact.path,
+          artifactKind: videoArtifact.kind,
           raw: result,
           debugSample: pollResult.debugSample
         };
@@ -635,7 +783,8 @@ export class ArkAiProvider implements AiProvider {
       provider: "ark",
       status: "submitted",
       taskId,
-      note: "Ark video task is still processing; render will continue with local material-aware fallback."
+      note: "Ark video task is still processing; render will continue with local material-aware fallback.",
+      fallbackReason: "ARK_VIDEO_TASK_STILL_PROCESSING"
     };
   }
 
@@ -652,7 +801,7 @@ export class ArkAiProvider implements AiProvider {
 
   private buildVideoContent(input: VideoGenerationInput) {
     const text = `${input.productTitle}. ${input.shot.visualPrompt}. ${input.shot.cameraMotion}. Subtitle: ${input.shot.subtitle}. Keep it ecommerce-safe and conversion-oriented.`;
-    if (input.imageUrl) {
+    if (isPublicHttpUrl(input.imageUrl) && isLikelyImageUrl(input.imageUrl)) {
       return [
         { type: "text", text },
         { type: "image_url", image_url: { url: input.imageUrl } }
@@ -662,123 +811,7 @@ export class ArkAiProvider implements AiProvider {
   }
 
   private async parseArkVideoTask(payload: unknown): Promise<ArkVideoTaskPollResult> {
-    const debugSample =
-      process.env.ARK_VIDEO_DEBUG_SAMPLE === "true"
-        ? (await writeArkVideoDebugSample(payload)).sample
-        : redactPayloadShape(payload);
-    const taskId = this.extractTaskId(payload);
-    const status = this.normalizeTaskStatus(this.extractTaskStatus(payload));
-    const artifacts = this.extractVideoArtifacts(payload);
-    const { errorCode, message } = this.extractTaskError(payload);
-    return { taskId, status, artifacts, errorCode, message, debugSample };
-  }
-
-  private extractTaskStatus(payload: unknown): string | undefined {
-    return this.findFirstString(payload, ["status", "state", "phase"]);
-  }
-
-  private extractTaskId(payload: unknown): string | undefined {
-    return this.findFirstString(payload, ["id", "task_id", "taskId", "taskID"]);
-  }
-
-  private extractVideoArtifacts(payload: unknown): ArkVideoArtifact[] {
-    const artifacts: ArkVideoArtifact[] = [];
-    const visit = (value: unknown, currentPath: string, depth: number) => {
-      if (depth > 6) {
-        return;
-      }
-      if (typeof value === "string" && /^https?:\/\//i.test(value)) {
-        const lowerPath = currentPath.toLowerCase();
-        const lowerValue = value.toLowerCase();
-        if (/\.(mp4|mov|webm)(\?|$)/i.test(lowerValue) || lowerPath.includes("video")) {
-          artifacts.push({ url: value, kind: "video", path: currentPath });
-        } else if (lowerPath.includes("cover") || lowerPath.includes("poster")) {
-          artifacts.push({ url: value, kind: "cover", path: currentPath });
-        } else {
-          artifacts.push({ url: value, kind: "unknown", path: currentPath });
-        }
-        return;
-      }
-      if (Array.isArray(value)) {
-        value.forEach((item, index) => visit(item, `${currentPath}[${index}]`, depth + 1));
-        return;
-      }
-      if (isRecord(value)) {
-        for (const [key, nested] of Object.entries(value)) {
-          visit(nested, currentPath ? `${currentPath}.${key}` : key, depth + 1);
-        }
-      }
-    };
-    visit(payload, "", 0);
-    const unique = new Map(artifacts.map((artifact) => [artifact.url, artifact]));
-    return [...unique.values()].sort((a, b) =>
-      a.kind === "video" ? -1 : b.kind === "video" ? 1 : 0
-    );
-  }
-
-  private extractTaskError(payload: unknown): { errorCode?: string; message?: string } {
-    return {
-      errorCode: this.findFirstString(payload, ["error_code", "errorCode", "code"]),
-      message: this.findFirstString(payload, ["message", "error", "reason"])
-    };
-  }
-
-  private findFirstString(payload: unknown, keys: string[]): string | undefined {
-    const queue: unknown[] = [payload];
-    const seen = new Set<unknown>();
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!isRecord(current) || seen.has(current)) {
-        continue;
-      }
-      seen.add(current);
-      for (const key of keys) {
-        const value = current[key];
-        if (typeof value === "string" && value.trim()) {
-          return value.trim();
-        }
-        if (typeof value === "number") {
-          return String(value);
-        }
-      }
-      for (const value of Object.values(current)) {
-        if (isRecord(value) || Array.isArray(value)) {
-          queue.push(value);
-        }
-      }
-      for (const value of Object.values(current)) {
-        if (Array.isArray(value)) {
-          value.forEach((item) => queue.push(item));
-        }
-      }
-    }
-    return undefined;
-  }
-
-  private normalizeTaskStatus(status?: string): ArkVideoTaskStatus {
-    const normalized = (status ?? "submitted").toLowerCase().replace(/[\s-]/g, "_");
-    if (["success", "succeeded", "completed", "done"].includes(normalized)) {
-      return "succeeded";
-    }
-    if (["fail", "failed", "error"].includes(normalized)) {
-      return "failed";
-    }
-    if (["content_review_failed", "review_failed", "audit_failed"].includes(normalized)) {
-      return "review_failed";
-    }
-    if (["cancel", "cancelled", "canceled"].includes(normalized)) {
-      return "cancelled";
-    }
-    if (["running", "processing", "generating"].includes(normalized)) {
-      return "running";
-    }
-    if (["queued", "pending", "created"].includes(normalized)) {
-      return "queued";
-    }
-    if (normalized === "submitted") {
-      return "submitted";
-    }
-    return "unknown";
+    return parseArkVideoTaskPayload(payload, true);
   }
 }
 
@@ -846,8 +879,14 @@ export class HybridAiProvider implements AiProvider {
   async generateShotVideo(input: VideoGenerationInput): Promise<VideoGenerationOutput> {
     try {
       return await this.primary.generateShotVideo(input);
-    } catch {
-      return this.fallback.generateShotVideo(input);
+    } catch (error) {
+      const fallback = await this.fallback.generateShotVideo(input);
+      const reason = sanitizeErrorMessage(error);
+      return {
+        ...fallback,
+        note: `${fallback.note} Primary Ark attempt failed; using mock fallback. Reason: ${reason}`,
+        fallbackReason: reason
+      };
     }
   }
 

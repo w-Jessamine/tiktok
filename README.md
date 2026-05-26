@@ -59,13 +59,16 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm ark:smoke
-pnpm demo:videos
+pnpm demo:ark-video
+pnpm demo:fallback-videos
 docker compose up
 ```
 
 The Docker Compose path runs Postgres, Redis, MinIO, API, worker and web services together. The worker container installs FFmpeg for video composition.
 
-`pnpm demo:videos` renders three local vertical commerce-video previews under `storage/demo-commerce-dynamic` without requiring Docker, Redis or database services. These files are dynamic fallback previews for quick visual checks; the target generation path still prioritizes Ark Seedance shot clips and merchant-owned video materials.
+`pnpm demo:ark-video` is the real Ark/Seedance video smoke path. It reads Ark credentials and model ids only from local environment variables, creates one short video task, downloads the returned video into `storage/demo-ark-seedance`, and writes a redacted manifest with task/status/URL field-shape metadata. Use it when you intentionally want to spend video-generation quota.
+
+`pnpm demo:fallback-videos` renders three local vertical commerce-video previews under `storage/demo-commerce-dynamic` without requiring Docker, Redis or database services. These files are dynamic fallback previews for quick visual checks and are not Ark/Seedance outputs. `pnpm demo:videos` remains an alias for this fallback-only command for backward compatibility.
 
 `pnpm ark:smoke` validates the Ark text-generation path using only local environment variables and prints script metadata. Run `pnpm ark:smoke -- --video` only when you intentionally want to spend video-generation quota; the script prints redacted task/status/URL shape information and never prints API keys or raw payloads.
 
@@ -97,7 +100,7 @@ S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
 ```
 
-`AI_PROVIDER=hybrid` first tries Ark when secrets and models are configured, then falls back to mock generation so demos remain stable.
+`AI_PROVIDER=hybrid` first tries Ark when secrets and models are configured, then falls back to mock generation so demos remain stable. The job trace records the provider mode, whether the video model is configured, and a sanitized fallback reason when Ark does not return a usable video URL.
 
 `ARK_VIDEO_DEBUG_SAMPLE` is off by default. When enabled, it writes only redacted response field paths for Ark video task calibration; it does not persist raw payloads or secrets.
 
@@ -111,11 +114,11 @@ S3_SECRET_ACCESS_KEY=minioadmin
 6. Run one-click video creation in vertical 9:16 or horizontal 16:9.
 7. Worker tries Ark async video generation, then falls back to uploaded material mixing or dynamic storyboard preview rendering.
 8. Optionally enable TTS/BGM audio mix, or generate A/B variants that compare hook, style, CTA, subtitle density and voice tone.
-9. Watch job progress and trace events, then preview/download the exported MP4.
+9. Watch job progress and trace events, then preview/download the exported MP4. Every export is labeled as `ARK_GENERATED`, `HYBRID_MIX`, `MATERIAL_MIX`, `DYNAMIC_FALLBACK`, or `STORYBOARD_FALLBACK`.
 10. Review compliance status and use manual approval for demo assets that pass source/authenticity checks.
 11. Feed metric observations or CSV rows into the analytics board to show source-aware factor data backflow.
 
-For the fastest judge walkthrough, run `pnpm seed`, open the web app, then visit Assets, Scripts, Create, Jobs and Analytics in order. The seeded data demonstrates the full loop while the live worker path remains available for real uploads and Ark/FFmpeg generation.
+For the fastest judge walkthrough, run `pnpm seed`, open the web app, then visit Assets, Scripts, Create, Jobs and Analytics in order. Seeded exports are placeholder walkthrough data, not evidence of a successful Ark/Seedance run. Treat only source-labeled `ARK_GENERATED` exports or `pnpm demo:ark-video` outputs as real Ark video evidence.
 
 ## Repository Layout
 
@@ -150,7 +153,7 @@ P1:
 - Real slice thumbnail extraction for uploaded video assets
 - Optional TTS/BGM audio mix with deterministic fallback providers
 - Material-aware FFmpeg mixing
-- Export source labels for Ark-generated, material-mix and fallback-preview outputs
+- Export source labels for Ark-generated, hybrid-mix, material-mix and fallback-preview outputs
 - Generation trace and retry
 - Factor metric backflow board with manual and CSV ingestion
 - A/B creative variants and rules-based compliance review

@@ -28,6 +28,7 @@ export const complianceObjectTypeSchema = z.enum(["ASSET", "SCRIPT", "SHOT", "VI
 export const analyticsSourceSchema = z.enum(["MANUAL", "CSV", "MOCK", "EXTERNAL"]);
 export const videoRenderSourceSchema = z.enum([
   "ARK_GENERATED",
+  "HYBRID_MIX",
   "MATERIAL_MIX",
   "DYNAMIC_FALLBACK",
   "STORYBOARD_FALLBACK"

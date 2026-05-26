@@ -8,8 +8,8 @@
 4. Move to the task center and show asset analysis trace.
 5. Generate three scripts from the product brief.
 6. Edit a shot subtitle, duration and material query; drag one shot.
-7. Generate a vertical 9:16 video.
-8. Show task trace and preview/export result.
+7. Queue a vertical 9:16 source-labeled export.
+8. Show provider attempt, fallback decision, final render source and preview/export result.
 9. Open analytics board, feed one manual metric row, and explain factor attribution backflow.
 
 ## Manual Acceptance Checklist
@@ -24,16 +24,27 @@
 
 ## Local Video Effect Check
 
-Use this when you want to check the renderer without starting the full database/Redis stack:
+Use this when calibrating the real Ark/Seedance video path. It consumes video quota and requires
+local environment variables for Ark credentials and model ids:
 
 ```bash
-pnpm demo:videos
+pnpm demo:ark-video
+```
+
+The command writes downloaded videos and a redacted manifest under `storage/demo-ark-seedance`.
+Only this command or a UI export labeled `ARK_GENERATED` should be treated as Ark/Seedance video
+evidence.
+
+Use this when you want to check the local renderer without starting the full database/Redis stack:
+
+```bash
+pnpm demo:fallback-videos
 ```
 
 The command writes three vertical 9:16 MP4 files under `storage/demo-commerce-dynamic`.
 These are dynamic fallback previews for local demos: they should show motion, overlays,
-subtitle rhythm and audio, but they are still not the final target visual quality. The
-intended production path remains:
+subtitle rhythm and audio, but they are not Ark/Seedance outputs and are not the final target
+visual quality. The intended production path remains:
 
 1. Use real merchant images/videos as material inputs whenever available.
 2. Try Ark Seedance text/image-to-video for shot-level clips.

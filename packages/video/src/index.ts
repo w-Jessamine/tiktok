@@ -16,6 +16,7 @@ export type RenderMaterial = {
   shotOrder: number;
   url: string;
   kind: "image" | "video" | "remote-video";
+  source?: "ark" | "merchant" | "fallback";
   startMs?: number;
   endMs?: number;
 };
@@ -26,6 +27,13 @@ export type RenderOutput = {
   durationMs: number;
   resolution: string;
   renderSource: VideoRenderSource;
+  clipStats: {
+    arkClips: number;
+    materialClips: number;
+    fallbackClips: number;
+    failedMaterialClips: number;
+    totalClips: number;
+  };
 };
 
 export type RenderAudioInput = {
@@ -43,6 +51,8 @@ export type ThumbnailOutput = {
   filePath: string;
   capturedAtMs: number;
 };
+
+export type RenderClipStats = RenderOutput["clipStats"];
 
 const FPS = 30;
 
@@ -535,6 +545,40 @@ const renderDynamicFallbackShotClip = async (input: {
   return outputPath;
 };
 
+export const getRenderSourceFromClipStats = (
+  stats: RenderClipStats,
+  shotCount: number,
+  usedStoryboardFallback = false
+): VideoRenderSource =>
+  usedStoryboardFallback
+    ? "STORYBOARD_FALLBACK"
+    : stats.arkClips > 0 &&
+        stats.materialClips === 0 &&
+        stats.fallbackClips === 0 &&
+        stats.arkClips === shotCount
+      ? "ARK_GENERATED"
+      : stats.arkClips > 0 || (stats.materialClips > 0 && stats.fallbackClips > 0)
+        ? "HYBRID_MIX"
+        : stats.materialClips > 0
+          ? "MATERIAL_MIX"
+          : "DYNAMIC_FALLBACK";
+
+const renderFallbackClip = async (input: {
+  shot: StoryboardShot;
+  aspectRatio: VideoAspectRatio;
+  outputDir: string;
+  index: number;
+}) =>
+  renderDynamicFallbackShotClip(input).catch((error: unknown) => {
+    if (process.env.VIDEOPILOT_RENDER_DEBUG === "true") {
+      console.warn(
+        "Dynamic fallback render failed; using storyboard fallback.",
+        error instanceof Error ? error.message : error
+      );
+    }
+    return renderFallbackShotClip(input);
+  });
+
 const concatClips = async (clipPaths: string[], outputPath: string) => {
   const listPath = outputPath.replace(/\.mp4$/, "-concat.txt");
   await writeFile(
@@ -635,10 +679,40 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
   );
 
   const clipPaths: string[] = [];
-  let renderSource: VideoRenderSource = "STORYBOARD_FALLBACK";
+  const clipStats = {
+    arkClips: 0,
+    materialClips: 0,
+    fallbackClips: 0,
+    failedMaterialClips: 0,
+    totalClips: 0
+  };
+  let usedStoryboardFallback = false;
   for (const shot of input.shots) {
     const material = materialByOrder.get(shot.order);
     if (!material) {
+      clipPaths.push(
+        await renderFallbackClip({
+          shot,
+          aspectRatio: input.aspectRatio,
+          outputDir: input.outputDir,
+          index: clipPaths.length
+        }).catch((error: unknown) => {
+          usedStoryboardFallback = true;
+          if (process.env.VIDEOPILOT_RENDER_DEBUG === "true") {
+            console.warn(
+              "Per-shot fallback render failed; using storyboard fallback.",
+              error instanceof Error ? error.message : error
+            );
+          }
+          return renderFallbackShotClip({
+            shot,
+            aspectRatio: input.aspectRatio,
+            outputDir: input.outputDir,
+            index: clipPaths.length
+          });
+        })
+      );
+      clipStats.fallbackClips += 1;
       continue;
     }
     try {
@@ -651,28 +725,27 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
           index: clipPaths.length
         })
       );
+      if (material.source === "ark") {
+        clipStats.arkClips += 1;
+      } else {
+        clipStats.materialClips += 1;
+      }
     } catch {
-      // A single bad merchant asset should not break the full export; fallback below keeps the demo complete.
-    }
-  }
-
-  if (clipPaths.length === 0) {
-    renderSource = "DYNAMIC_FALLBACK";
-    for (const shot of input.shots) {
+      clipStats.failedMaterialClips += 1;
       clipPaths.push(
-        await renderDynamicFallbackShotClip({
+        await renderFallbackClip({
           shot,
           aspectRatio: input.aspectRatio,
           outputDir: input.outputDir,
           index: clipPaths.length
         }).catch((error: unknown) => {
+          usedStoryboardFallback = true;
           if (process.env.VIDEOPILOT_RENDER_DEBUG === "true") {
             console.warn(
-              "Dynamic fallback render failed; using storyboard fallback.",
+              "Material fallback render failed; using storyboard fallback.",
               error instanceof Error ? error.message : error
             );
           }
-          renderSource = "STORYBOARD_FALLBACK";
           return renderFallbackShotClip({
             shot,
             aspectRatio: input.aspectRatio,
@@ -681,12 +754,16 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
           });
         })
       );
+      clipStats.fallbackClips += 1;
     }
-  } else {
-    renderSource = input.materials?.some((material) => material.kind === "remote-video")
-      ? "ARK_GENERATED"
-      : "MATERIAL_MIX";
   }
+  clipStats.totalClips = clipPaths.length;
+
+  const renderSource = getRenderSourceFromClipStats(
+    clipStats,
+    input.shots.length,
+    usedStoryboardFallback
+  );
 
   if (clipPaths.length > 0) {
     await concatClips(clipPaths, outputPath);
@@ -745,7 +822,8 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
     coverPath,
     durationMs,
     resolution,
-    renderSource
+    renderSource,
+    clipStats
   };
 };
 
