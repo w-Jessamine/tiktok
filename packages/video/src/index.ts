@@ -242,7 +242,11 @@ const buildSubtitleOverlay = (input: {
   aspectRatio: VideoAspectRatio;
   index: number;
 }) => {
-  const subtitle = escapeDrawText(input.shot.subtitle.slice(0, 88));
+  const subtitleLines = wrapText(
+    input.shot.subtitle.slice(0, 88),
+    input.aspectRatio === "HORIZONTAL_16_9" ? 54 : 30,
+    2
+  );
   const queryBadge = escapeDrawText(input.shot.materialQuery.split(/\s+/).slice(0, 4).join(" "));
   const fontSize = input.aspectRatio === "HORIZONTAL_16_9" ? 30 : 28;
   const badgeSize = input.aspectRatio === "HORIZONTAL_16_9" ? 20 : 19;
@@ -251,7 +255,13 @@ const buildSubtitleOverlay = (input: {
     `drawbox=x=iw*0.07:y=ih*0.075:w=iw*0.28:h=ih*0.044:color=black@0.30:t=fill:enable='${between(0, 1.7)}'`,
     `drawtext=text='SHOT ${input.index + 1}':fontcolor=white@0.86:fontsize=${badgeSize}:x=w*0.09:y=h*0.085:enable='${between(0, 1.7)}'`,
     `drawtext=text='${queryBadge}':fontcolor=white@0.72:fontsize=${badgeSize}:x=w*0.09:y=h*0.13:enable='${between(0.15, 1.9)}'`,
-    `drawtext=text='${subtitle}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=h*0.78:box=1:boxcolor=black@0.24:boxborderw=16`
+    drawTextLines({
+      lines: subtitleLines,
+      fontSize,
+      y: "h*0.765",
+      lineHeight: fontSize + 10,
+      box: true
+    })
   ].join(",");
 };
 
