@@ -2,7 +2,11 @@ import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import { ArkAiProvider } from "../packages/ai/dist/ai/src/index.js";
+import {
+  ArkAiProvider,
+  MockAiProvider,
+  compileCommerceShotPrompt
+} from "../packages/ai/dist/ai/src/index.js";
 import { renderStoryboardVideo } from "../packages/video/dist/video/src/index.js";
 
 const outputRoot = path.resolve(process.cwd(), "storage", "demo-ark-seedance");
@@ -37,9 +41,6 @@ const downloadVideo = async (url, filePath) => {
   await pipeline(response.body, createWriteStream(filePath));
 };
 
-const safePromptPrefix =
-  "Vertical TikTok Shop ecommerce video. UGC handheld realism. Product must stay visible. No burned-in text, no logos, no fake review, no fake discount, no medical claim.";
-
 const assertExistingClip = async (filePath) => {
   const fileStat = await stat(filePath).catch(() => undefined);
   if (!fileStat?.isFile() || fileStat.size <= 0) {
@@ -51,39 +52,96 @@ const assertExistingClip = async (filePath) => {
 
 await mkdir(outputRoot, { recursive: true });
 
-const productTitle = "SnapSort Drawer Organizer";
-const shots = [
-  {
-    order: 0,
-    durationMs: 5000,
-    visualPrompt: `${safePromptPrefix} Hook shot: open a messy drawer, reveal a white adjustable drawer organizer, hand quickly places the organizer into the drawer, before-after transformation starts, realistic home lighting.`,
-    cameraMotion: "fast push-in, jump cut, handheld first-person movement",
-    materialQuery: "drawer organizer before after hand demo",
-    subtitle: "Messy drawer? Fix it in seconds",
-    voiceover: "Messy drawer? This organizer makes the reset quick and visible.",
-    bgmMood: "fast satisfying beat"
+const product = {
+  id: "demo-snap-sort-drawer-organizer",
+  title: "SnapSort Drawer Organizer",
+  category: "Home organization",
+  sellingPoints: [
+    "visible before-and-after drawer reset",
+    "adjustable compartments for small daily items",
+    "clean product scale and material texture"
+  ],
+  audience: "busy renters and small-space home shoppers",
+  scenario: "resetting a messy desk or bedroom drawer before work",
+  productUrl: "https://example.com/products/snapsort-drawer-organizer",
+  language: "en-US"
+};
+
+const methodology = {
+  templateId: "pain-point-rescue-home-storage-v2",
+  templateName: "Pain Point Rescue",
+  strategy:
+    "Open with a relatable messy-drawer pain point, prove the organizer through hands-on sorting, then close on a practical upgrade CTA.",
+  factors: {
+    hook: "messy drawer cold open",
+    proof: "before-after organization and compartment close-up",
+    camera: "first-person UGC handheld movement",
+    cta: "routine upgrade CTA without fake urgency",
+    subtitle: "short benefit captions added by renderer"
   },
-  {
-    order: 1,
-    durationMs: 5000,
-    visualPrompt: `${safePromptPrefix} Proof shot: close-up of adjustable compartments, hand sorts clips, pens, keys and small items into sections, show scale and material texture, practical satisfying organization.`,
-    cameraMotion: "macro close-up, gentle pull-back, quick proof cuts",
-    materialQuery: "adjustable compartments close up product proof",
-    subtitle: "Adjustable sections, cleaner mornings",
-    voiceover: "Adjustable sections make small drawers easier to use every morning.",
-    bgmMood: "bright CTA finish"
-  },
-  {
-    order: 2,
-    durationMs: 5000,
-    visualPrompt: `${safePromptPrefix} CTA shot: clean drawer fully organized with the product centered, hand closes and reopens drawer smoothly, product packshot feeling, shopper-friendly final moment.`,
-    cameraMotion: "smooth pull-back to organized drawer, final product hold",
-    materialQuery: "organized drawer final CTA product hold",
-    subtitle: "Tap to upgrade your drawer",
-    voiceover: "Tap to upgrade your drawer while the organizer is available.",
-    bgmMood: "bright CTA finish"
+  source:
+    "Built-in compliant ecommerce methodology library, derived from abstracted viral-video patterns.",
+  referencePolicy:
+    "No public reference video is copied or remixed; only the abstract strategy/factor recipe is used."
+};
+
+const shouldUseArkScriptProvider =
+  !reuseExisting && Boolean(process.env.ARK_API_KEY && process.env.ARK_TEXT_MODEL);
+const scriptProvider = shouldUseArkScriptProvider
+  ? new ArkAiProvider(process.env)
+  : new MockAiProvider();
+const [baseScript] = await scriptProvider.generateScripts({
+  product,
+  count: 1,
+  templateName: methodology.templateName,
+  prompt:
+    "Create a concrete home-organization TikTok Shop storyboard with visible product proof, no medical or fake discount claims, and strong shot-level material queries."
+});
+
+if (!baseScript) {
+  throw new Error("Failed to create the demo commerce script.");
+}
+
+const selectDemoShots = (shots) => {
+  if (shotCount === 1) {
+    return [shots[0]].filter(Boolean);
   }
-].slice(0, shotCount);
+  if (shotCount === 2) {
+    return [shots[0], shots.at(-1)].filter(Boolean);
+  }
+  return [shots[0], shots[2] ?? shots[1], shots.at(-1)].filter(Boolean);
+};
+
+const selectedStoryboardShots = selectDemoShots(baseScript.shots).map((shot, order) => ({
+  ...shot,
+  order
+}));
+
+const compiledShots = selectedStoryboardShots.map((shot) => {
+  const compiled = compileCommerceShotPrompt({
+    product,
+    script: baseScript,
+    shot: { ...shot, durationMs: 5000 },
+    methodology,
+    platform: "tiktok_shop",
+    assetHints: [
+      "merchant-owned product main image: white adjustable drawer organizer",
+      "merchant-owned product video: hand sorting small desk and drawer items",
+      shot.materialQuery
+    ]
+  });
+  return {
+    originalShot: shot,
+    compiled,
+    shot: {
+      ...shot,
+      durationMs: 5000,
+      visualPrompt: compiled.prompt
+    }
+  };
+});
+
+const shots = compiledShots.map((item) => item.shot);
 
 const results = [];
 if (reuseExisting) {
@@ -93,6 +151,7 @@ if (reuseExisting) {
     results.push({
       prompt: shot.visualPrompt,
       shotOrder: shot.order,
+      compilerTrace: compiledShots.find((item) => item.shot.order === shot.order)?.compiled.trace,
       startedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
       provider: "ark",
@@ -111,7 +170,7 @@ if (reuseExisting) {
     const startedAt = new Date().toISOString();
     const output = await provider.generateShotVideo({
       shot,
-      productTitle,
+      productTitle: product.title,
       aspectRatio: "VERTICAL_9_16"
     });
     const fileName = `ark-shot-${shot.order + 1}-${Date.now()}.mp4`;
@@ -125,6 +184,7 @@ if (reuseExisting) {
     results.push({
       prompt: shot.visualPrompt,
       shotOrder: shot.order,
+      compilerTrace: compiledShots.find((item) => item.shot.order === shot.order)?.compiled.trace,
       startedAt,
       finishedAt: new Date().toISOString(),
       provider: output.provider,
@@ -148,7 +208,7 @@ const downloadedResults = results.filter((result) => result.downloaded && result
 let finalExport;
 if (downloadedResults.length > 0) {
   finalExport = await renderStoryboardVideo({
-    scriptTitle: `${productTitle} Ark Seedance Flagship Demo`,
+    scriptTitle: `${product.title} Ark Seedance Flagship Demo`,
     shots,
     aspectRatio: "VERTICAL_9_16",
     outputDir: path.join(outputRoot, "final"),
@@ -173,7 +233,24 @@ await writeFile(
   JSON.stringify(
     {
       generatedAt: new Date().toISOString(),
-      productTitle,
+      productTitle: product.title,
+      product,
+      script: {
+        title: baseScript.title,
+        narrative: baseScript.narrative,
+        visualStyle: baseScript.visualStyle,
+        constraints: baseScript.constraints,
+        selectedShotOrders: selectedStoryboardShots.map((shot) => shot.order),
+        source: shouldUseArkScriptProvider
+          ? "generated_by_ark_text_model_from_product_and_methodology"
+          : "generated_by_local_template_provider_from_product_and_methodology"
+      },
+      methodology,
+      promptCompiler: {
+        version: "commerce-shot-v2",
+        summary:
+          "Each Ark/Seedance prompt is compiled from product truth, methodology strategy/factors, generated storyboard shots, asset retrieval hints and compliance constraints."
+      },
       mode: reuseExisting ? "reuse-existing" : "ark-generate",
       modelConfigured: Boolean(process.env.ARK_VIDEO_MODEL),
       expectedRenderSource:

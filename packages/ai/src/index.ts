@@ -166,6 +166,42 @@ type CommerceAngle = {
   voiceTone: string;
 };
 
+export type CommerceCreativeMethodology = {
+  templateId: string;
+  templateName: string;
+  strategy: string;
+  factors: Record<string, string>;
+  source: string;
+  referencePolicy: string;
+};
+
+export type CommercePromptCompilerInput = {
+  product: ProductCreateInput & { id: string };
+  script: Pick<ScriptModel, "title" | "narrative" | "visualStyle" | "constraints">;
+  shot: StoryboardShot;
+  methodology: CommerceCreativeMethodology;
+  platform?: "tiktok_shop" | "douyin_ecommerce";
+  assetHints?: string[];
+};
+
+export type CompiledCommerceShotPrompt = {
+  prompt: string;
+  trace: {
+    compilerVersion: string;
+    platform: "tiktok_shop" | "douyin_ecommerce";
+    productId: string;
+    templateId: string;
+    templateName: string;
+    strategy: string;
+    factors: Record<string, string>;
+    scriptTitle: string;
+    shotOrder: number;
+    materialQuery: string;
+    assetHints: string[];
+    constraints: string[];
+  };
+};
+
 export const commerceScriptAngles: CommerceAngle[] = [
   {
     name: "Pain Point Rescue",
@@ -375,6 +411,63 @@ const createCommerceScript = (input: CommerceScriptInput, angle: CommerceAngle):
     version: 1,
     shots
   });
+};
+
+export const compileCommerceShotPrompt = (
+  input: CommercePromptCompilerInput
+): CompiledCommerceShotPrompt => {
+  const platform = input.platform ?? "tiktok_shop";
+  const productTruths = [
+    `title=${input.product.title}`,
+    `category=${input.product.category}`,
+    `audience=${input.product.audience}`,
+    `scene=${input.product.scenario}`,
+    `selling_points=${input.product.sellingPoints.join(" | ")}`
+  ];
+  const factorLine = Object.entries(input.methodology.factors)
+    .map(([key, value]) => `${key}=${value}`)
+    .join("; ");
+  const constraints = [
+    ...input.script.constraints,
+    "vertical 9:16 ecommerce shot",
+    "product remains visible and recognizable",
+    "no burned-in fake app UI, no fake review, no unsupported discount or efficacy claim"
+  ];
+  const assetHints = input.assetHints?.length
+    ? input.assetHints
+    : [input.shot.materialQuery, input.product.category, input.product.scenario];
+  const compactConstraints = [...new Set(constraints)].slice(0, 6);
+  const prompt = [
+    platform === "douyin_ecommerce"
+      ? "Douyin ecommerce short-video shot."
+      : "TikTok Shop ecommerce short-video shot.",
+    "Generate one realistic UGC-style merchant product segment, not a generic stock clip.",
+    `Product truth: ${productTruths.join("; ")}.`,
+    `Methodology: ${input.methodology.templateName}; strategy=${input.methodology.strategy}; factors=${factorLine}.`,
+    `Script: ${input.script.title}; style=${input.script.visualStyle}; narrative=${input.script.narrative}.`,
+    `Shot: order=${input.shot.order}; visual=${input.shot.visualPrompt}; camera=${input.shot.cameraMotion}; subtitle_intent=${input.shot.subtitle}.`,
+    `Material intent: ${assetHints.join(" | ")}.`,
+    `Constraints: ${compactConstraints.join("; ")}.`,
+    "Keep motion natural; show hands, product scale, before-after proof or packshot when relevant; no burned-in text because subtitles are added later."
+  ].join(" ");
+
+  return {
+    prompt,
+    trace: {
+      compilerVersion: "commerce-shot-v2",
+      platform,
+      productId: input.product.id,
+      templateId: input.methodology.templateId,
+      templateName: input.methodology.templateName,
+      strategy: input.methodology.strategy,
+      factors: input.methodology.factors,
+      scriptTitle: input.script.title,
+      shotOrder: input.shot.order,
+      materialQuery: input.shot.materialQuery,
+      assetHints,
+      constraints
+    }
+  };
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

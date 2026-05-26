@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  compileCommerceShotPrompt,
   createAiProvider,
   MockAiProvider,
   parseArkVideoTaskPayload,
@@ -29,6 +30,57 @@ describe("AI providers", () => {
     });
     const total = scripts[0]!.shots.reduce((sum, shot) => sum + shot.durationMs, 0);
     expect(total).toBeLessThanOrEqual(15000);
+  });
+
+  it("compiles Seedance prompts from product truth, methodology factors and shot intent", () => {
+    const compiled = compileCommerceShotPrompt({
+      product: {
+        id: "p-home-1",
+        title: "SnapSort Drawer Organizer",
+        category: "Home organization",
+        sellingPoints: ["adjustable compartments", "visible drawer reset"],
+        audience: "small-space shoppers",
+        scenario: "messy drawer reset",
+        language: "en-US"
+      },
+      script: {
+        title: "SnapSort - Pain Point Rescue",
+        narrative: "Hook a messy drawer, prove organization, close with CTA.",
+        visualStyle: "first-person UGC product demo",
+        constraints: ["final video must be under 15 seconds"]
+      },
+      shot: {
+        order: 2,
+        durationMs: 5000,
+        visualPrompt: "Show before-after drawer organization with the product in frame.",
+        cameraMotion: "macro proof cut",
+        materialQuery: "drawer organizer before after proof",
+        subtitle: "Cleaner drawers in seconds",
+        voiceover: "The adjustable compartments make the reset visible.",
+        bgmMood: "bright proof rhythm"
+      },
+      methodology: {
+        templateId: "pain-point-rescue-home-storage-v2",
+        templateName: "Pain Point Rescue",
+        strategy: "pain point to proof to CTA",
+        factors: {
+          hook: "messy drawer cold open",
+          proof: "before-after organization",
+          cta: "routine upgrade CTA"
+        },
+        source: "built-in methodology library",
+        referencePolicy: "abstract pattern only"
+      },
+      assetHints: ["merchant product image", "merchant product video"]
+    });
+
+    expect(compiled.prompt).toContain("SnapSort Drawer Organizer");
+    expect(compiled.prompt).toContain("Pain Point Rescue");
+    expect(compiled.prompt).toContain("before-after organization");
+    expect(compiled.prompt).toContain("merchant product video");
+    expect(compiled.prompt).toContain("no burned-in fake app UI");
+    expect(compiled.trace.compilerVersion).toBe("commerce-shot-v2");
+    expect(compiled.trace.materialQuery).toBe("drawer organizer before after proof");
   });
 
   it("mock embeddings are normalized and stable", async () => {
