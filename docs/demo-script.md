@@ -29,15 +29,21 @@ local environment variables for Ark credentials and model ids:
 
 ```bash
 pnpm demo:ark-video
+pnpm demo:ark-video -- --case=beauty --two-shots
+pnpm demo:ark-video -- --all-cases --two-shots
 ```
 
 The command writes downloaded shot clips, a stitched final MP4 and a redacted manifest under
-`storage/demo-ark-seedance`. The manifest should show the full business chain: product brief,
-methodology strategy/factors, generated storyboard, `commerce-shot-v2` prompt compiler traces, Ark
-shot results and final render provenance. Only this command or a UI export labeled `ARK_GENERATED`
-should be treated as Ark/Seedance video evidence. Use `pnpm demo:ark-video -- --one-shot` when you
-only need a cheaper connection/schema smoke test, or `pnpm demo:ark-video -- --reuse-existing` to
-validate stitching with already-downloaded local clips without spending quota.
+`storage/demo-ark-seedance/<case-id>`. The manifest should show the full business chain: product
+brief, methodology strategy/factors, generated storyboard, `commerce-shot-v2` prompt compiler traces,
+Ark shot results and final render provenance. Only this command or a UI export labeled
+`ARK_GENERATED` should be treated as Ark/Seedance video evidence. Use
+`pnpm demo:ark-video -- --one-shot` when you only need a cheaper connection/schema smoke test,
+`-- --two-shots` for a compact 10s case, `-- --case=beauty|storage|kitchen` for a specific product,
+`-- --all-cases` for batch Ark generation, or `-- --reuse-existing` to validate stitching with
+already-downloaded local clips without spending quota. The demo defaults to deterministic local
+commerce scripts plus real Seedance shot generation so video evidence is stable; add `-- --ark-script`
+only when script-generation calibration is part of the run.
 
 For model routing, use the strongest available Doubao Seed text endpoint as `ARK_TEXT_MODEL` for
 script reasoning and prompt compilation, and use the Seedance video endpoint as `ARK_VIDEO_MODEL`.
