@@ -157,6 +157,7 @@ if (reuseExisting) {
       provider: "ark",
       status: "succeeded",
       hasUrl: false,
+      nativeAudioRequested: process.env.ARK_VIDEO_GENERATE_AUDIO === "true",
       downloaded: true,
       filePath: existing,
       note: "Reused an existing local Ark clip for stitching validation."
@@ -190,6 +191,7 @@ if (reuseExisting) {
       provider: output.provider,
       status: output.status,
       hasUrl: Boolean(output.url),
+      nativeAudioRequested: output.nativeAudioRequested,
       downloaded,
       filePath: downloaded ? filePath : undefined,
       redactedUrl: output.url ? redactUrl(output.url) : undefined,
@@ -220,7 +222,8 @@ if (downloadedResults.length > 0) {
     })),
     audio: {
       voiceEnabled: false,
-      bgmEnabled: true,
+      bgmEnabled: false,
+      preserveSourceAudio: true,
       bgmMood: "upbeat",
       bgmVolume: 0.08
     }
@@ -253,6 +256,11 @@ await writeFile(
       },
       mode: reuseExisting ? "reuse-existing" : "ark-generate",
       modelConfigured: Boolean(process.env.ARK_VIDEO_MODEL),
+      nativeAudioPolicy: {
+        requested: process.env.ARK_VIDEO_GENERATE_AUDIO === "true",
+        renderer:
+          "preserve Ark/Seedance source audio for ARK_GENERATED clips; use local TTS/BGM only when explicitly enabled or when using material/fallback paths"
+      },
       expectedRenderSource:
         finalExport?.renderSource ?? (downloadedResults.length > 0 ? "HYBRID_MIX" : "FAILED"),
       finalExport: finalExport

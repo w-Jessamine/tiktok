@@ -98,6 +98,7 @@ export const processVideoGeneration = async (data: {
   const audioOutputDir = path.resolve(workerOutputRoot, "audio", data.jobId);
   const voicePaths: string[] = [];
   const diagnostics = getAiRuntimeDiagnostics();
+  let hasArkGeneratedClip = false;
   await appendTrace(data.jobId, "provider", "AI provider runtime configuration checked.", {
     ...diagnostics,
     hasArkKey: diagnostics.hasArkKey ? "configured" : "missing"
@@ -144,6 +145,7 @@ export const processVideoGeneration = async (data: {
       data: { generatedUrl: generated.url ?? null }
     });
     if (generated.url) {
+      hasArkGeneratedClip = true;
       renderMaterials.push({
         shotOrder: shot.order,
         url: generated.url,
@@ -169,6 +171,7 @@ export const processVideoGeneration = async (data: {
         status: generated.status,
         taskId: generated.taskId,
         artifactPath: generated.artifactPath,
+        nativeAudioRequested: generated.nativeAudioRequested,
         fallbackReason: generated.fallbackReason,
         referenceImageUsed: Boolean(referenceImage),
         renderMaterialSource: generated.url ? "ark" : selectedAsset?.url ? "merchant" : "fallback",
@@ -262,6 +265,7 @@ export const processVideoGeneration = async (data: {
     audio: {
       voiceEnabled: data.voiceEnabled,
       bgmEnabled: data.bgmEnabled,
+      preserveSourceAudio: hasArkGeneratedClip && !data.voiceEnabled && !data.bgmEnabled,
       voiceLocale: data.voiceLocale ?? product.language,
       bgmMood: data.bgmMood,
       voicePaths,
@@ -291,6 +295,7 @@ export const processVideoGeneration = async (data: {
         audio: {
           voiceEnabled: Boolean(data.voiceEnabled),
           bgmEnabled: Boolean(data.bgmEnabled),
+          preserveSourceAudio: hasArkGeneratedClip && !data.voiceEnabled && !data.bgmEnabled,
           voiceCount: voicePaths.length,
           hasBgm: Boolean(bgmPath)
         }

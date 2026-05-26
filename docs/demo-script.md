@@ -39,6 +39,12 @@ should be treated as Ark/Seedance video evidence. Use `pnpm demo:ark-video -- --
 only need a cheaper connection/schema smoke test, or `pnpm demo:ark-video -- --reuse-existing` to
 validate stitching with already-downloaded local clips without spending quota.
 
+For model routing, use the strongest available Doubao Seed text endpoint as `ARK_TEXT_MODEL` for
+script reasoning and prompt compilation, and use the Seedance video endpoint as `ARK_VIDEO_MODEL`.
+Keep `ARK_VIDEO_GENERATE_AUDIO=false` unless the configured Seedance endpoint supports native audio;
+when it is enabled, the renderer preserves Ark/Seedance source audio instead of covering it with the
+local fallback BGM.
+
 Use this when you want to check the local renderer without starting the full database/Redis stack:
 
 ```bash

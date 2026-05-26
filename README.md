@@ -76,6 +76,11 @@ The Docker Compose path runs Postgres, Redis, MinIO, API, worker and web service
 
 See [docs/engineering.md](docs/engineering.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for CI gates, branch rules, review expectations, and secret-handling requirements.
 
+For the Agent design, see [docs/agent-architecture.md](docs/agent-architecture.md). It adapts
+Viking AI Search ecommerce-guide ideas to this project: decision-grade material data, multimodal
+retrieval, strategy/factor planning, prompt compilation, source-labeled rendering and analytics
+backflow.
+
 ## Environment Variables
 
 ```bash
@@ -103,6 +108,8 @@ S3_SECRET_ACCESS_KEY=minioadmin
 ```
 
 `AI_PROVIDER=hybrid` first tries Ark when secrets and models are configured, then falls back to mock generation so demos remain stable. The job trace records the provider mode, whether the video model is configured, and a sanitized fallback reason when Ark does not return a usable video URL.
+
+Model routing is intentionally split: put the reasoning/script model, such as a Doubao Seed 2.x text endpoint, in `ARK_TEXT_MODEL`; put the Seedance video endpoint in `ARK_VIDEO_MODEL`. `ARK_VIDEO_GENERATE_AUDIO=false` is the conservative default for broad Seedance compatibility. If your video endpoint supports native audio generation, set `ARK_VIDEO_GENERATE_AUDIO=true`; Ark-generated clips will preserve their source audio unless the user explicitly enables local TTS/BGM mixing.
 
 `ARK_VIDEO_DEBUG_SAMPLE` is off by default. When enabled, it writes only redacted response field paths for Ark video task calibration; it does not persist raw payloads or secrets.
 

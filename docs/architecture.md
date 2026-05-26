@@ -25,6 +25,10 @@ flowchart LR
 - `packages/ai`: provider interface plus Ark, Hybrid and Mock implementations.
 - `packages/video`: FFmpeg-based renderer used by the worker.
 
+See [agent-architecture.md](agent-architecture.md) for the creative-agent design inspired by
+Viking AI Search practices: intent parsing, retrieval planning, strategy selection, prompt
+compilation, provider routing, source-labeled rendering and factor backflow.
+
 ## Long Task Flow
 
 1. API creates a `GenerationJob`.

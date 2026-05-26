@@ -39,6 +39,7 @@ export type RenderOutput = {
 export type RenderAudioInput = {
   voiceEnabled?: boolean;
   bgmEnabled?: boolean;
+  preserveSourceAudio?: boolean;
   voiceLocale?: string;
   bgmMood?: string;
   voiceVolume?: number;
@@ -272,6 +273,7 @@ const renderMaterialClip = async (input: {
   aspectRatio: VideoAspectRatio;
   outputDir: string;
   index: number;
+  preserveSourceAudio?: boolean;
 }) => {
   const resolution = getResolution(input.aspectRatio);
   const [width, height] = resolution.split("x").map(Number) as [number, number];
@@ -322,7 +324,12 @@ const renderMaterialClip = async (input: {
   }
 
   const trimStart = Math.max(0, (input.material.startMs ?? 0) / 1000);
-  await execa("ffmpeg", [
+  const preserveAudio = Boolean(
+    input.preserveSourceAudio &&
+    input.material.source === "ark" &&
+    input.material.kind === "remote-video"
+  );
+  const args = [
     "-y",
     "-ss",
     String(trimStart),
@@ -332,11 +339,14 @@ const renderMaterialClip = async (input: {
     sourceUrl,
     "-vf",
     sourceVideoFilter,
-    "-an",
+    ...(preserveAudio
+      ? ["-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-c:a", "aac", "-shortest"]
+      : ["-an"]),
     "-movflags",
     "+faststart",
     outputPath
-  ]);
+  ];
+  await execa("ffmpeg", args);
   return outputPath;
 };
 
@@ -721,7 +731,8 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
           shot,
           aspectRatio: input.aspectRatio,
           outputDir: input.outputDir,
-          index: clipPaths.length
+          index: clipPaths.length,
+          preserveSourceAudio: input.audio?.preserveSourceAudio
         })
       );
       if (material.source === "ark") {
@@ -788,8 +799,9 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
     ]);
   }
 
+  const shouldMixSyntheticAudio = Boolean(input.audio?.voiceEnabled || input.audio?.bgmEnabled);
   const audio = await buildAudioInputs({
-    audio: input.audio,
+    audio: shouldMixSyntheticAudio ? input.audio : undefined,
     durationMs,
     outputDir: input.outputDir
   });

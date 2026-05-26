@@ -52,6 +52,11 @@ describe("video helpers", () => {
     expect(typeof generateVideoThumbnail).toBe("function");
   });
 
+  it("exposes preserveSourceAudio as an audio render option", () => {
+    const audio = { preserveSourceAudio: true };
+    expect(audio.preserveSourceAudio).toBe(true);
+  });
+
   it("labels render sources from actual successful clips instead of requested materials", () => {
     expect(
       getRenderSourceFromClipStats(

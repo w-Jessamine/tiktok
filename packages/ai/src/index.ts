@@ -42,6 +42,7 @@ export type VideoGenerationOutput = {
   taskId?: string;
   status?: ArkVideoTaskStatus | "fallback";
   note: string;
+  nativeAudioRequested?: boolean;
   fallbackReason?: string;
   artifactPath?: string;
   artifactKind?: ArkVideoArtifact["kind"];
@@ -823,7 +824,8 @@ export class ArkAiProvider implements AiProvider {
         content: this.buildVideoContent(input),
         duration: this.resolveVideoDuration(input.shot.durationMs),
         ratio: input.aspectRatio === "HORIZONTAL_16_9" ? "16:9" : "9:16",
-        resolution: process.env.ARK_VIDEO_RESOLUTION ?? "720p"
+        resolution: process.env.ARK_VIDEO_RESOLUTION ?? "720p",
+        ...this.buildNativeAudioRequest()
       },
       castTo: Object
     } as any);
@@ -854,7 +856,10 @@ export class ArkAiProvider implements AiProvider {
           status: "succeeded",
           taskId,
           url: videoArtifact.url,
-          note: "Ark video task completed and returned a video URL.",
+          note: this.shouldGenerateNativeAudio()
+            ? "Ark video task completed and returned a video URL; native audio was requested."
+            : "Ark video task completed and returned a video URL.",
+          nativeAudioRequested: this.shouldGenerateNativeAudio(),
           artifactPath: videoArtifact.path,
           artifactKind: videoArtifact.kind,
           raw: result,
@@ -911,6 +916,20 @@ export class ArkAiProvider implements AiProvider {
     }
     const requestedSeconds = Math.max(5, Math.round(shotDurationMs / 1000));
     return [5, 10, 12].find((duration) => duration >= requestedSeconds) ?? 12;
+  }
+
+  private shouldGenerateNativeAudio() {
+    return process.env.ARK_VIDEO_GENERATE_AUDIO === "true";
+  }
+
+  private buildNativeAudioRequest() {
+    if (!this.shouldGenerateNativeAudio()) {
+      return {};
+    }
+    return {
+      generate_audio: true,
+      with_audio: true
+    };
   }
 
   private async parseArkVideoTask(payload: unknown): Promise<ArkVideoTaskPollResult> {
