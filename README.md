@@ -66,7 +66,7 @@ docker compose up
 
 The Docker Compose path runs Postgres, Redis, MinIO, API, worker and web services together. The worker container installs FFmpeg for video composition.
 
-`pnpm demo:ark-video` is the real Ark/Seedance video smoke path. It reads Ark credentials and model ids only from local environment variables, creates one short video task, downloads the returned video into `storage/demo-ark-seedance`, and writes a redacted manifest with task/status/URL field-shape metadata. Use it when you intentionally want to spend video-generation quota.
+`pnpm demo:ark-video` is the real Ark/Seedance flagship path. It reads Ark credentials and model ids only from local environment variables, creates three 5-second ecommerce video shots by default, downloads the returned clips into `storage/demo-ark-seedance`, stitches them into one vertical MP4 under `storage/demo-ark-seedance/final`, and writes a redacted manifest with task/status/URL field-shape metadata. Use it when you intentionally want to spend video-generation quota. Pass `-- --one-shot` for the cheaper single-shot smoke path, or `-- --reuse-existing` to restitch previously downloaded local clips without requiring Ark credentials.
 
 `pnpm demo:fallback-videos` renders three local vertical commerce-video previews under `storage/demo-commerce-dynamic` without requiring Docker, Redis or database services. These files are dynamic fallback previews for quick visual checks and are not Ark/Seedance outputs. `pnpm demo:videos` remains an alias for this fallback-only command for backward compatibility.
 

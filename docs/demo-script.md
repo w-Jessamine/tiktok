@@ -31,9 +31,11 @@ local environment variables for Ark credentials and model ids:
 pnpm demo:ark-video
 ```
 
-The command writes downloaded videos and a redacted manifest under `storage/demo-ark-seedance`.
-Only this command or a UI export labeled `ARK_GENERATED` should be treated as Ark/Seedance video
-evidence.
+The command writes downloaded shot clips, a stitched final MP4 and a redacted manifest under
+`storage/demo-ark-seedance`. Only this command or a UI export labeled `ARK_GENERATED` should be
+treated as Ark/Seedance video evidence. Use `pnpm demo:ark-video -- --one-shot` when you only need a
+cheaper connection/schema smoke test, or `pnpm demo:ark-video -- --reuse-existing` to validate
+stitching with already-downloaded local clips without spending quota.
 
 Use this when you want to check the local renderer without starting the full database/Redis stack:
 

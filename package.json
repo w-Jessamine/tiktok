@@ -13,7 +13,7 @@
     "ci": "pnpm format:check && pnpm stylelint && pnpm lint && pnpm prisma:validate && pnpm prisma:generate && pnpm typecheck && pnpm test && pnpm build",
     "dev": "pnpm -r --parallel dev",
     "ark:smoke": "pnpm --filter @videopilot/shared build && pnpm --filter @videopilot/ai build && node scripts/ark-smoke.mjs",
-    "demo:ark-video": "pnpm --filter @videopilot/shared build && pnpm --filter @videopilot/ai build && node scripts/render-ark-video-demo.mjs",
+    "demo:ark-video": "pnpm --filter @videopilot/shared build && pnpm --filter @videopilot/ai build && pnpm --filter @videopilot/video build && node scripts/render-ark-video-demo.mjs",
     "demo:fallback-videos": "pnpm --filter @videopilot/shared build && pnpm --filter @videopilot/ai build && pnpm --filter @videopilot/video build && node scripts/render-commerce-demos.mjs",
     "demo:videos": "pnpm run demo:fallback-videos",
     "lint": "pnpm -r lint",

@@ -228,11 +228,10 @@ const buildKenBurnsScale = (input: {
 const between = (start: number, end: number) => `between(t\\,${start}\\,${end})`;
 
 const buildVideoMotionScale = (input: { width: number; height: number; index: number }) => {
-  const xPhase = input.index % 2 === 0 ? "sin(t*1.7)*18" : "cos(t*1.5)*18";
-  const yPhase = input.index % 2 === 0 ? "cos(t*1.3)*12" : "sin(t*1.8)*12";
+  void input.index;
   return [
-    `scale=${Math.round(input.width * 1.16)}:${Math.round(input.height * 1.16)}:force_original_aspect_ratio=increase`,
-    `crop=${input.width}:${input.height}:x='(in_w-out_w)/2+${xPhase}':y='(in_h-out_h)/2+${yPhase}'`,
+    `scale=${input.width}:${input.height}:force_original_aspect_ratio=increase`,
+    `crop=${input.width}:${input.height}`,
     "setpts=PTS-STARTPTS"
   ].join(",");
 };
@@ -247,8 +246,8 @@ const buildSubtitleOverlay = (input: {
   const fontSize = input.aspectRatio === "HORIZONTAL_16_9" ? 30 : 28;
   const badgeSize = input.aspectRatio === "HORIZONTAL_16_9" ? 20 : 19;
   return [
-    "drawbox=x=0:y=h*0.70:w=w:h=h*0.30:color=black@0.26:t=fill",
-    `drawbox=x=w*0.07:y=h*0.075:w=w*0.28:h=h*0.044:color=black@0.30:t=fill:enable='${between(0, 1.7)}'`,
+    "drawbox=x=0:y=ih*0.70:w=iw:h=ih*0.30:color=black@0.26:t=fill",
+    `drawbox=x=iw*0.07:y=ih*0.075:w=iw*0.28:h=ih*0.044:color=black@0.30:t=fill:enable='${between(0, 1.7)}'`,
     `drawtext=text='SHOT ${input.index + 1}':fontcolor=white@0.86:fontsize=${badgeSize}:x=w*0.09:y=h*0.085:enable='${between(0, 1.7)}'`,
     `drawtext=text='${queryBadge}':fontcolor=white@0.72:fontsize=${badgeSize}:x=w*0.09:y=h*0.13:enable='${between(0.15, 1.9)}'`,
     `drawtext=text='${subtitle}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=h*0.78:box=1:boxcolor=black@0.24:boxborderw=16`
@@ -730,7 +729,13 @@ export const renderStoryboardVideo = async (input: RenderInput): Promise<RenderO
       } else {
         clipStats.materialClips += 1;
       }
-    } catch {
+    } catch (error) {
+      if (process.env.VIDEOPILOT_RENDER_DEBUG === "true") {
+        console.warn(
+          "Material clip render failed; using fallback shot.",
+          error instanceof Error ? error.message : error
+        );
+      }
       clipStats.failedMaterialClips += 1;
       clipPaths.push(
         await renderFallbackClip({
