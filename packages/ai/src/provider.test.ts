@@ -71,16 +71,29 @@ describe("AI providers", () => {
         source: "built-in methodology library",
         referencePolicy: "abstract pattern only"
       },
-      assetHints: ["merchant product image", "merchant product video"]
+      assetHints: ["merchant product image", "merchant product video"],
+      productVisualSpec:
+        "A white modular drawer organizer tray with rectangular compartments inside a wooden drawer.",
+      shotQualityPlan: {
+        mustShow: ["drawer organizer tray", "hands adjusting compartments"],
+        mustAvoid: ["generic plastic box", "fake app UI"],
+        motion: "hand adjusts one compartment",
+        composition: "organizer centered in vertical frame"
+      }
     });
 
     expect(compiled.prompt).toContain("SnapSort Drawer Organizer");
     expect(compiled.prompt).toContain("Pain Point Rescue");
     expect(compiled.prompt).toContain("before-after organization");
     expect(compiled.prompt).toContain("merchant product video");
+    expect(compiled.prompt).toContain("Product visual identity lock");
+    expect(compiled.prompt).toContain("hands adjusting compartments");
+    expect(compiled.prompt).toContain("Must avoid");
     expect(compiled.prompt).toContain("no burned-in fake app UI");
     expect(compiled.trace.compilerVersion).toBe("commerce-shot-v2");
     expect(compiled.trace.materialQuery).toBe("drawer organizer before after proof");
+    expect(compiled.trace.productVisualSpec).toContain("rectangular compartments");
+    expect(compiled.trace.shotQualityPlan?.motion).toBe("hand adjusts one compartment");
   });
 
   it("mock embeddings are normalized and stable", async () => {

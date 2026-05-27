@@ -183,6 +183,13 @@ export type CommercePromptCompilerInput = {
   methodology: CommerceCreativeMethodology;
   platform?: "tiktok_shop" | "douyin_ecommerce";
   assetHints?: string[];
+  productVisualSpec?: string;
+  shotQualityPlan?: {
+    mustShow?: string[];
+    mustAvoid?: string[];
+    motion?: string;
+    composition?: string;
+  };
 };
 
 export type CompiledCommerceShotPrompt = {
@@ -200,6 +207,8 @@ export type CompiledCommerceShotPrompt = {
     materialQuery: string;
     assetHints: string[];
     constraints: string[];
+    productVisualSpec?: string;
+    shotQualityPlan?: CommercePromptCompilerInput["shotQualityPlan"];
   };
 };
 
@@ -432,25 +441,53 @@ export const compileCommerceShotPrompt = (
     ...input.script.constraints,
     "vertical 9:16 ecommerce shot",
     "product remains visible and recognizable",
-    "no burned-in fake app UI, no fake review, no unsupported discount or efficacy claim"
+    "no burned-in fake app UI, no fake review, no unsupported discount or efficacy claim",
+    "no readable brand logos, no gibberish labels, no subtitles or UI text inside the generated footage",
+    "avoid morphing product category, color, size, or material during the shot"
   ];
   const assetHints = input.assetHints?.length
     ? input.assetHints
     : [input.shot.materialQuery, input.product.category, input.product.scenario];
-  const compactConstraints = [...new Set(constraints)].slice(0, 6);
+  const compactConstraints = [...new Set(constraints)].slice(0, 8);
+  const qualityPlan = input.shotQualityPlan ?? {};
+  const productVisualSpec =
+    input.productVisualSpec ??
+    `${input.product.title} must stay recognizable as a ${input.product.category} product with merchant-safe appearance and realistic scale.`;
+  const mustShow = qualityPlan.mustShow?.length
+    ? qualityPlan.mustShow
+    : [
+        `clear product identity for ${input.product.title}`,
+        "one visible hands-on usage action",
+        "realistic ecommerce lighting and scale"
+      ];
+  const mustAvoid = qualityPlan.mustAvoid?.length
+    ? qualityPlan.mustAvoid
+    : [
+        "extra invented logos or fake app UI",
+        "unreadable printed words",
+        "product changing into a different object"
+      ];
   const prompt = [
     platform === "douyin_ecommerce"
       ? "Douyin ecommerce short-video shot."
       : "TikTok Shop ecommerce short-video shot.",
-    "Generate one realistic UGC-style merchant product segment, not a generic stock clip.",
+    "Generate one realistic UGC-style merchant product segment, not a generic stock clip or static packshot.",
+    "Prioritize real video motion: hands interact with the product, camera moves naturally, and the product remains in frame.",
     `Product truth: ${productTruths.join("; ")}.`,
+    `Product visual identity lock: ${productVisualSpec}`,
     `Methodology: ${input.methodology.templateName}; strategy=${input.methodology.strategy}; factors=${factorLine}.`,
     `Script: ${input.script.title}; style=${input.script.visualStyle}; narrative=${input.script.narrative}.`,
     `Shot: order=${input.shot.order}; visual=${input.shot.visualPrompt}; camera=${input.shot.cameraMotion}; subtitle_intent=${input.shot.subtitle}.`,
     `Material intent: ${assetHints.join(" | ")}.`,
+    `Must show: ${mustShow.join("; ")}.`,
+    `Must avoid: ${mustAvoid.join("; ")}.`,
+    qualityPlan.motion ? `Motion target: ${qualityPlan.motion}.` : "",
+    qualityPlan.composition ? `Composition target: ${qualityPlan.composition}.` : "",
     `Constraints: ${compactConstraints.join("; ")}.`,
-    "Keep motion natural; show hands, product scale, before-after proof or packshot when relevant; no burned-in text because subtitles are added later."
-  ].join(" ");
+    "Keep the clip cinematic but merchant-realistic; subtitles and CTA overlays are added later by the renderer, so do not generate text overlays."
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return {
     prompt,
@@ -466,7 +503,9 @@ export const compileCommerceShotPrompt = (
       shotOrder: input.shot.order,
       materialQuery: input.shot.materialQuery,
       assetHints,
-      constraints
+      constraints,
+      productVisualSpec,
+      shotQualityPlan: qualityPlan
     }
   };
 };
@@ -478,6 +517,21 @@ const isPublicHttpUrl = (url?: string | null) => Boolean(url && /^https?:\/\//i.
 
 const isLikelyImageUrl = (url?: string | null) =>
   Boolean(url && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url));
+
+const compactVideoPrompt = (
+  text: string,
+  maxLength = Number(process.env.ARK_VIDEO_PROMPT_MAX_CHARS ?? 1450)
+) => {
+  const normalized = text
+    .replace(/\s+/g, " ")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(1, maxLength - 1)).trimEnd()}.`;
+};
 
 const sanitizeErrorMessage = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -899,7 +953,15 @@ export class ArkAiProvider implements AiProvider {
   }
 
   private buildVideoContent(input: VideoGenerationInput) {
-    const text = `${input.productTitle}. ${input.shot.visualPrompt}. ${input.shot.cameraMotion}. Subtitle: ${input.shot.subtitle}. Keep it ecommerce-safe and conversion-oriented.`;
+    const text = compactVideoPrompt(
+      [
+        input.productTitle,
+        input.shot.visualPrompt,
+        input.shot.cameraMotion,
+        `Subtitle intent: ${input.shot.subtitle}`,
+        "Ecommerce-safe UGC video; realistic motion; product visible; no generated text overlays."
+      ].join(". ")
+    );
     if (isPublicHttpUrl(input.imageUrl) && isLikelyImageUrl(input.imageUrl)) {
       return [
         { type: "text", text },

@@ -28,6 +28,7 @@ const reuseExisting = args.has("--reuse-existing");
 const runAllCases = args.has("--all-cases");
 const selectedCaseId = getArgValue("--case");
 const useArkScriptProvider = args.has("--ark-script");
+const selectedShotOrder = Number(getArgValue("--shot") ?? Number.NaN);
 
 const requireEnv = (name) => {
   const value = process.env[name];
@@ -104,7 +105,40 @@ const demoCases = [
     assetHints: [
       "merchant-owned product main image: white adjustable drawer organizer",
       "merchant-owned product video: hand sorting small desk and drawer items"
-    ]
+    ],
+    productVisualSpec:
+      "A translucent or matte white modular drawer organizer tray with rectangular adjustable compartments, placed inside a wooden desk drawer; no text or logo on the product.",
+    shotQualityPlans: {
+      0: {
+        mustShow: [
+          "messy drawer before state",
+          "hand opening or resetting the drawer",
+          "organizer tray visible as a storage product"
+        ],
+        mustAvoid: [
+          "turning the product into a generic storage box",
+          "fake app UI or readable labels",
+          "unrelated room decor dominating the frame"
+        ],
+        motion: "first-person hand opens drawer, quick push-in, product enters frame",
+        composition:
+          "vertical phone video, desk drawer centered, hands and product large enough to inspect"
+      },
+      1: {
+        mustShow: [
+          "organized drawer after state",
+          "rectangular compartments holding small daily items",
+          "clean packshot-like final moment"
+        ],
+        mustAvoid: [
+          "loose random clutter without organizer compartments",
+          "invented discount text",
+          "product disappearing behind the drawer"
+        ],
+        motion: "hand slides drawer or adjusts one compartment, then holds for final product proof",
+        composition: "drawer and organizer occupy the center two thirds of the vertical frame"
+      }
+    }
   },
   {
     id: "beauty",
@@ -144,7 +178,39 @@ const demoCases = [
     assetHints: [
       "merchant-owned product main image: small serum bottle with dropper",
       "merchant-owned product video: serum texture on hand under soft bathroom light"
-    ]
+    ],
+    productVisualSpec:
+      "A small clear glass serum bottle with pale golden liquid and a plain white dropper cap, shown on a clean bathroom counter; no brand text, no medical visuals.",
+    shotQualityPlans: {
+      0: {
+        mustShow: [
+          "clear serum bottle or dropper in the first seconds",
+          "macro liquid texture or dropper motion",
+          "clean skincare counter setting"
+        ],
+        mustAvoid: [
+          "before-after face transformation",
+          "medical or clinical equipment",
+          "readable fake label text"
+        ],
+        motion: "hand lifts dropper, liquid moves naturally, slight macro camera push",
+        composition: "serum bottle and hand fill most of the frame with soft bathroom light"
+      },
+      1: {
+        mustShow: [
+          "plain serum bottle packshot",
+          "dropper cap or texture proof",
+          "premium clean countertop finish"
+        ],
+        mustAvoid: [
+          "invented skin efficacy claim",
+          "fake star reviews or sale stickers",
+          "label text that looks like gibberish"
+        ],
+        motion: "slow hand placement or dropper close-up, then steady packshot hold",
+        composition: "bottle centered, minimal background, no text inside generated footage"
+      }
+    }
   },
   {
     id: "kitchen",
@@ -184,9 +250,67 @@ const demoCases = [
     assetHints: [
       "merchant-owned product main image: compact portable blender cup",
       "merchant-owned product video: fruit pieces blending into a smoothie"
-    ]
+    ],
+    productVisualSpec:
+      "A compact portable blender cup with a transparent mixing jar, visible fruit pieces or smoothie inside, and a simple black or white motor base; it must not look like a thermos, speaker, tumbler, or coffee cup.",
+    shotQualityPlans: {
+      0: {
+        mustShow: [
+          "transparent blender cup with fruit or smoothie visible",
+          "hand adding fruit or pressing blender button",
+          "desk or kitchen context for a quick smoothie"
+        ],
+        mustAvoid: [
+          "opaque bottle or thermos shape",
+          "nonsense vertical brand lettering",
+          "laptop-only scene with no blending action"
+        ],
+        motion: "fruit drops into cup, hand presses button, liquid swirls or cup vibrates slightly",
+        composition:
+          "portable blender cup centered and tall in vertical frame, transparent jar clearly visible"
+      },
+      1: {
+        mustShow: [
+          "finished smoothie inside transparent cup",
+          "detachable cup or easy rinse implication",
+          "portable scale near hand or desk"
+        ],
+        mustAvoid: [
+          "turning into a plain travel mug",
+          "invented readable logo text",
+          "black cylinder with no transparent jar"
+        ],
+        motion: "hand lifts blender cup or rinses detachable cup, then holds for product proof",
+        composition:
+          "product fills center of frame, jar and motor base both visible, no generated text overlays"
+      }
+    }
   }
 ];
+
+const buildRenderCriticPlan = ({ demoCase, shot, compiled }) => {
+  const plan = demoCase.shotQualityPlans?.[shot.order] ?? {};
+  const mustShow = plan.mustShow ?? [];
+  const mustAvoid = plan.mustAvoid ?? [];
+  return {
+    version: "render-critic-plan-v1",
+    caseId: demoCase.id,
+    shotOrder: shot.order,
+    productTitle: demoCase.product.title,
+    productVisualSpec: demoCase.productVisualSpec,
+    expectedEvidence: mustShow,
+    rejectIfSeen: mustAvoid,
+    motionTarget: plan.motion,
+    compositionTarget: plan.composition,
+    rerunGuidance: [
+      "rerun if product category changes or product is not visible",
+      "rerun if generated text/logos dominate the frame",
+      "rerun if the clip is mostly static and lacks the expected hands-on action",
+      "rerun if subtitle-safe area is visually too busy"
+    ],
+    compilerVersion: compiled?.trace?.compilerVersion ?? "unknown"
+  };
+};
 
 const getCasesToRun = () => {
   if (runAllCases) {
@@ -207,6 +331,11 @@ const getCasesToRun = () => {
 };
 
 const selectDemoShots = (shots) => {
+  if (Number.isInteger(selectedShotOrder)) {
+    return [
+      shots.find((shot) => shot.order === selectedShotOrder) ?? shots[selectedShotOrder]
+    ].filter(Boolean);
+  }
   if (shotCount === 1) {
     return [shots[0]].filter(Boolean);
   }
@@ -240,7 +369,7 @@ const renderCase = async (demoCase) => {
 
   const selectedStoryboardShots = selectDemoShots(baseScript.shots).map((shot, order) => ({
     ...shot,
-    order
+    order: Number.isInteger(selectedShotOrder) ? shot.order : order
   }));
 
   const compiledShots = selectedStoryboardShots.map((shot) => {
@@ -250,7 +379,9 @@ const renderCase = async (demoCase) => {
       shot: { ...shot, durationMs: 5000 },
       methodology: demoCase.methodology,
       platform: "tiktok_shop",
-      assetHints: [...demoCase.assetHints, shot.materialQuery]
+      assetHints: [...demoCase.assetHints, shot.materialQuery],
+      productVisualSpec: demoCase.productVisualSpec,
+      shotQualityPlan: demoCase.shotQualityPlans?.[shot.order]
     });
     return {
       originalShot: shot,
@@ -270,10 +401,16 @@ const renderCase = async (demoCase) => {
     for (const shot of shots) {
       const existing = path.join(caseOutputRoot, `ark-shot-${shot.order + 1}.mp4`);
       await assertExistingClip(existing);
+      const compiledItem = compiledShots.find((item) => item.shot.order === shot.order);
       results.push({
         prompt: shot.visualPrompt,
         shotOrder: shot.order,
-        compilerTrace: compiledShots.find((item) => item.shot.order === shot.order)?.compiled.trace,
+        compilerTrace: compiledItem?.compiled.trace,
+        renderCriticPlan: buildRenderCriticPlan({
+          demoCase,
+          shot,
+          compiled: compiledItem?.compiled
+        }),
         startedAt: new Date().toISOString(),
         finishedAt: new Date().toISOString(),
         provider: "ark",
@@ -290,6 +427,7 @@ const renderCase = async (demoCase) => {
     requireEnv("ARK_VIDEO_MODEL");
     const provider = new ArkAiProvider(process.env);
     for (const shot of shots) {
+      const compiledItem = compiledShots.find((item) => item.shot.order === shot.order);
       const startedAt = new Date().toISOString();
       const output = await provider.generateShotVideo({
         shot,
@@ -307,7 +445,12 @@ const renderCase = async (demoCase) => {
       results.push({
         prompt: shot.visualPrompt,
         shotOrder: shot.order,
-        compilerTrace: compiledShots.find((item) => item.shot.order === shot.order)?.compiled.trace,
+        compilerTrace: compiledItem?.compiled.trace,
+        renderCriticPlan: buildRenderCriticPlan({
+          demoCase,
+          shot,
+          compiled: compiledItem?.compiled
+        }),
         startedAt,
         finishedAt: new Date().toISOString(),
         provider: output.provider,
