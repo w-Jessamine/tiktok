@@ -1,44 +1,168 @@
 # TikTok Shop VideoPilot
 
-AIGC ecommerce product video generation MVP for TikTok Shop sellers. The project covers product material intake, structured asset analysis, script generation, storyboard editing, one-click video creation, task tracing, preview/export, and factor-level data backflow.
+TikTok Shop VideoPilot is an AIGC product-video generation MVP for ecommerce sellers. It turns a product brief and owned or licensed product assets into short shoppable videos, while keeping the generation chain traceable, editable and stable through real Ark/Seedance calls plus explicit fallback paths.
 
-Current iteration also includes provider seams and demo-ready workflows for Ark video response calibration, slice thumbnails, TTS/BGM mixing, A/B variants, compliance review, and CSV analytics ingestion.
+The project is built for the competition topic **电商场景 AIGC 带货视频生成系统**. It demonstrates an end-to-end merchant workflow:
+
+```text
+Product brief -> Asset library -> Structured material analysis -> Script generation
+-> Storyboard editing -> One-click video generation -> Job trace -> Preview/export
+-> Factor analytics backflow
+```
 
 ## Core Value
 
-Turn merchant product information and owned/licensed materials into short shoppable videos under 15 seconds, while keeping the workflow explainable, retryable, and stable through hybrid real-model plus fallback execution.
+Help TikTok Shop merchants create conversion-oriented product videos under 15 seconds from product information and compliant materials. The system does not only generate a script: it connects material management, script strategy, shot-level creation, video rendering, compliance review and factor-level performance analysis into one reproducible workflow.
+
+## Current Completion
+
+This repository is a demo-ready MVP:
+
+- **P0 covered**: product/material upload, script generation, basic storyboard, one-click video generation, task progress, preview and export.
+- **P1 mostly covered**: material tags and slice search, storyboard editing, Ark provider with Mock fallback, FFmpeg rendering, subtitles, TTS/BGM provider seams, retryable job trace, mock/manual/CSV analytics, A/B variants and compliance review.
+- **P2 partially covered**: Agent-style creative planning, source-labeled rendering, A/B comparison, CI quality gates, manual CodeQL/Docker workflows and extensible ingestion/compliance providers.
+
+Production deployment, real ad-platform sync, external content-safety integration and production-grade observability are intentionally left as extension points.
+
+## Main Features
+
+### Asset Module
+
+- Upload product images, product videos and reference materials.
+- Require source statements and keep compliance status on assets.
+- Analyze assets into product-level tags, video summaries, slice-level tags and recall metadata.
+- Extract real thumbnail frames for video slices with FFmpeg.
+- Search materials by keywords, tags and embedding-style scoring.
+
+### Script Module
+
+- Generate ecommerce scripts from product title, category, selling points, target audience and usage scenario.
+- Use built-in creative methodologies such as pain-point rescue, scene seeding, comparison proof, material close-up, gift recommendation and promotion CTA.
+- Validate generated scripts with Zod schemas.
+- Edit storyboard shots, subtitles, durations, material queries and shot ordering.
+- Regenerate a single shot without recreating the whole script.
+
+### Creation Module
+
+- Create long-running generation jobs with progress and trace events.
+- Compile storyboard shots into Seedance-ready prompts with product truth, visual identity, must-show evidence and compliance constraints.
+- Prefer real Ark/Seedance video generation when credentials are configured.
+- Fall back explicitly to material-aware FFmpeg mixing or local storyboard preview rendering when model calls fail.
+- Render vertical 9:16 and horizontal 16:9 MP4 exports under 15 seconds.
+- Label every export as `ARK_GENERATED`, `HYBRID_MIX`, `MATERIAL_MIX`, `DYNAMIC_FALLBACK` or `STORYBOARD_FALLBACK`.
+
+### Growth and Governance
+
+- Create A/B experiments with variants across hook, visual style, CTA, subtitle density and voice tone.
+- Track CTR, CVR, GMV, spend, watch time and ROI through mock, manual and CSV data ingestion.
+- Review assets, scripts and exports through a rules-based compliance workflow plus manual decisions.
+- Preserve trace information for model calls, material recall, audio processing, rendering and retry decisions.
 
 ## Tech Stack
 
-- Frontend: React, Vite, TypeScript, Tailwind CSS, TanStack Query, Zustand, dnd-kit, ECharts
-- Backend: Node.js, TypeScript, Fastify, Prisma, BullMQ
-- Data: PostgreSQL, pgvector-ready schema, Redis, S3-compatible object storage
-- AI: Volcengine Ark-compatible provider, OpenAI SDK compatible client, Hybrid/Mock fallback
-- Video: FFmpeg material-aware renderer for preview/export
-- Quality: ESLint, Prettier, StyleLint, Vitest, Playwright-ready E2E, GitHub Actions
+| Layer    | Stack                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------ |
+| Frontend | React, Vite, TypeScript, Tailwind CSS, TanStack Query, Zustand, dnd-kit, ECharts                 |
+| Backend  | Node.js, TypeScript, Fastify, Prisma                                                             |
+| Worker   | BullMQ, Redis, FFmpeg                                                                            |
+| Data     | PostgreSQL, pgvector-ready schema, S3-compatible object storage                                  |
+| AI       | Volcengine Ark-compatible provider, Hybrid provider, Mock provider                               |
+| Quality  | ESLint, Prettier, StyleLint, Vitest, Playwright-ready config, Husky, lint-staged, GitHub Actions |
+
+## Repository Layout
+
+```text
+apps/web         Merchant-facing React workspace
+apps/api         Fastify REST API and SSE job status endpoints
+apps/worker      BullMQ processors for asset analysis and video generation
+packages/shared  Zod schemas, DTOs and shared TypeScript types
+packages/ai      Ark, Hybrid and Mock AI providers plus prompt compiler
+packages/video   FFmpeg renderer, subtitles, audio mix and export tools
+prisma           Database schema and seed data
+scripts          Ark smoke tests and demo video generation scripts
+docs             Architecture, API, engineering and submission materials
+```
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Web["Merchant Workspace<br/>React"] --> API["Fastify API"]
+  API --> DB["PostgreSQL<br/>Prisma"]
+  API --> Queue["BullMQ<br/>Redis"]
+  API --> Store["S3-compatible<br/>Object Storage"]
+  Queue --> Worker["Worker"]
+  Worker --> AI["Ark / Hybrid / Mock<br/>AI Provider"]
+  Worker --> Audio["TTS / BGM<br/>Providers"]
+  Worker --> Video["FFmpeg<br/>Renderer"]
+  Worker --> DB
+  Worker --> Store
+  API --> Events["Job Events<br/>SSE / Polling"]
+  Events --> Web
+```
+
+More details are available in:
+
+- [docs/architecture.md](docs/architecture.md)
+- [docs/agent-architecture.md](docs/agent-architecture.md)
+- [docs/api.md](docs/api.md)
+- [docs/engineering.md](docs/engineering.md)
+- [docs/submission.md](docs/submission.md)
 
 ## Security
 
-Do not commit real API keys, endpoints, quota details, account names, or paid resource identifiers. Use `.env` locally and deployment secrets in cloud platforms. `.env.example` intentionally contains only variable names and safe defaults.
+Do not commit real API keys, model endpoints, quota details, account names or paid resource identifiers.
+
+Use local `.env` files or deployment platform secrets for sensitive values. `.env.example` intentionally contains empty Ark fields and safe local defaults only.
+
+Useful checks before pushing:
+
+```bash
+rg "ark-[A-Za-z0-9-]+|APIKEY|ARK_API_KEY=.+|ARK_TEXT_MODEL=ep-|ARK_VIDEO_MODEL=ep-" .
+git status --short
+```
 
 ## Quick Start
+
+Prerequisites:
+
+- Node.js 20.11 or newer
+- pnpm 9.12.3
+- FFmpeg available in `PATH`
+- Docker only if you want local Postgres, Redis and MinIO through Compose
+
+Install dependencies:
 
 ```bash
 corepack enable
 pnpm install
 cp .env.example .env
+```
+
+Start local infrastructure:
+
+```bash
 docker compose up -d postgres redis minio
 pnpm prisma:generate
 pnpm prisma:push
 pnpm seed
+```
+
+Start services:
+
+```bash
 pnpm --filter @videopilot/api dev
 pnpm --filter @videopilot/worker dev
 pnpm --filter @videopilot/web dev
 ```
 
-Open `http://localhost:5173`.
+Open:
 
-On Windows PowerShell environments that block `.ps1` shims, use:
+```text
+http://localhost:5173
+```
+
+On Windows environments where pnpm is not globally available:
 
 ```bash
 npm.cmd exec --yes pnpm@9.12.3 -- install
@@ -47,39 +171,6 @@ npm.cmd exec --yes pnpm@9.12.3 -- prisma:push
 npm.cmd exec --yes pnpm@9.12.3 -- seed
 npm.cmd exec --yes pnpm@9.12.3 -- --filter @videopilot/api dev
 ```
-
-`pnpm seed` creates two reviewer-friendly demo products, structured assets, slice metadata, editable scripts, completed job traces, placeholder exports, A/B variants, and factor metrics. It is safe to rerun and gives the UI meaningful data before any real upload or model call.
-
-## Useful Commands
-
-```bash
-pnpm check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm ark:smoke
-pnpm demo:ark-video
-pnpm demo:fallback-videos
-docker compose up
-```
-
-The Docker Compose path runs Postgres, Redis, MinIO, API, worker and web services together. The worker container installs FFmpeg for video composition.
-
-`pnpm demo:ark-video` is the real Ark/Seedance flagship path. It starts from a product brief and built-in ecommerce methodology, generates a structured storyboard, compiles each selected Hook/Proof/CTA shot into a Seedance prompt with product truth, strategy factors, asset-retrieval hints and compliance constraints, downloads the returned clips into `storage/demo-ark-seedance/<case-id>`, stitches them into one vertical MP4 under that case's `final` directory, and writes a redacted manifest with the product/script/methodology/compiler trace plus task/status/URL field-shape metadata. Use it when you intentionally want to spend video-generation quota. Pass `-- --one-shot` for the cheaper single-shot smoke path, `-- --two-shots` for a compact 10s case, `-- --case=beauty|storage|kitchen` for a specific product, `-- --all-cases` for batch Ark generation, or `-- --reuse-existing` to restitch previously downloaded local clips without requiring Ark credentials. By default, the script uses deterministic local commerce scripts and real Seedance video tasks; add `-- --ark-script` only when you also want to spend text-model calls for script generation.
-
-`pnpm demo:fallback-videos` renders three local vertical commerce-video previews under `storage/demo-commerce-dynamic` without requiring Docker, Redis or database services. These files are dynamic fallback previews for quick visual checks and are not Ark/Seedance outputs. `pnpm demo:videos` remains an alias for this fallback-only command for backward compatibility.
-
-`pnpm ark:smoke` validates the Ark text-generation path using only local environment variables and prints script metadata. Run `pnpm ark:smoke -- --video` only when you intentionally want to spend video-generation quota; the script prints redacted task/status/URL shape information and never prints API keys or raw payloads.
-
-## Engineering Workflow
-
-See [docs/engineering.md](docs/engineering.md) and [CONTRIBUTING.md](CONTRIBUTING.md) for CI gates, branch rules, review expectations, and secret-handling requirements.
-
-For the Agent design, see [docs/agent-architecture.md](docs/agent-architecture.md). It adapts
-Viking AI Search ecommerce-guide ideas to this project: decision-grade material data, multimodal
-retrieval, strategy/factor planning, prompt compilation, source-labeled rendering and analytics
-backflow.
 
 ## Environment Variables
 
@@ -94,6 +185,7 @@ ARK_VIDEO_MAX_POLLS=12
 ARK_VIDEO_POLL_INTERVAL_MS=5000
 ARK_VIDEO_DURATION=5
 ARK_VIDEO_RESOLUTION=720p
+ARK_VIDEO_GENERATE_AUDIO=false
 ARK_VIDEO_DEBUG_SAMPLE=false
 TTS_PROVIDER=mock
 BGM_PROVIDER=mock
@@ -107,69 +199,60 @@ S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
 ```
 
-`AI_PROVIDER=hybrid` first tries Ark when secrets and models are configured, then falls back to mock generation so demos remain stable. The job trace records the provider mode, whether the video model is configured, and a sanitized fallback reason when Ark does not return a usable video URL.
+`AI_PROVIDER=hybrid` tries Ark first when credentials and model IDs are configured, then falls back to deterministic mock behavior so demos remain stable. The trace records sanitized provider state and fallback reasons.
 
-Model routing is intentionally split: put the reasoning/script model, such as a Doubao Seed 2.x text endpoint, in `ARK_TEXT_MODEL`; put the Seedance video endpoint in `ARK_VIDEO_MODEL`. `ARK_VIDEO_GENERATE_AUDIO=false` is the conservative default for broad Seedance compatibility. If your video endpoint supports native audio generation, set `ARK_VIDEO_GENERATE_AUDIO=true`; Ark-generated clips will preserve their source audio unless the user explicitly enables local TTS/BGM mixing.
+Use `ARK_TEXT_MODEL` for the reasoning/script endpoint and `ARK_VIDEO_MODEL` for the Seedance video endpoint. Keep `ARK_VIDEO_GENERATE_AUDIO=false` unless the configured video endpoint is known to support native audio generation.
 
-`ARK_VIDEO_DEBUG_SAMPLE` is off by default. When enabled, it writes only redacted response field paths for Ark video task calibration; it does not persist raw payloads or secrets.
+## Demo Commands
 
-## User Flow
-
-1. Create a product brief with title, category, selling points, audience and usage scenario.
-2. Upload product images, product videos or reference material with a source statement.
-3. Worker analyzes assets into product tags, summaries, embeddings and slice-level recall units.
-4. Generate three conversion-oriented scripts from product data and optional Prompt guidance.
-5. Edit storyboard shots: reorder, change duration, adjust subtitles, update material queries or regenerate one shot.
-6. Run one-click video creation in vertical 9:16 or horizontal 16:9.
-7. Worker tries Ark async video generation, then falls back to uploaded material mixing or dynamic storyboard preview rendering.
-8. Optionally enable TTS/BGM audio mix, or generate A/B variants that compare hook, style, CTA, subtitle density and voice tone.
-9. Watch job progress and trace events, then preview/download the exported MP4. Every export is labeled as `ARK_GENERATED`, `HYBRID_MIX`, `MATERIAL_MIX`, `DYNAMIC_FALLBACK`, or `STORYBOARD_FALLBACK`.
-10. Review compliance status and use manual approval for demo assets that pass source/authenticity checks.
-11. Feed metric observations or CSV rows into the analytics board to show source-aware factor data backflow.
-
-For the fastest judge walkthrough, run `pnpm seed`, open the web app, then visit Assets, Scripts, Create, Jobs and Analytics in order. Seeded exports are placeholder walkthrough data, not evidence of a successful Ark/Seedance run. Treat only source-labeled `ARK_GENERATED` exports or `pnpm demo:ark-video` outputs as real Ark video evidence.
-
-## Repository Layout
-
-```text
-apps/web        React merchant workspace
-apps/api        Fastify REST API and SSE job status endpoints
-apps/worker     BullMQ processors for asset analysis and video creation
-packages/shared Zod schemas, DTOs and shared types
-packages/ai     Ark, Hybrid and Mock AI providers
-packages/video  FFmpeg material-aware renderer
-prisma          Data model
-docs            Architecture, API and submission materials
+```bash
+pnpm seed
+pnpm demo:ark-video
+pnpm demo:ark-video -- --case=beauty --two-shots
+pnpm demo:ark-video -- --all-cases --two-shots
+pnpm demo:fallback-videos
+pnpm ark:smoke
 ```
 
-## MVP Completion
+`pnpm seed` creates reviewer-friendly product data, assets, scripts, job traces, placeholder exports, A/B variants and metrics. Seeded exports are walkthrough data, not evidence of a real Ark/Seedance run.
 
-P0:
+`pnpm demo:ark-video` is the real Ark/Seedance path. It consumes video-generation quota, downloads generated clips into `storage/demo-ark-seedance/<case-id>`, stitches them into a vertical MP4 and writes a redacted manifest. Only outputs labeled `ARK_GENERATED` should be treated as full Ark/Seedance video evidence.
 
-- Product/material upload
-- Script generation
-- Basic storyboard
-- One-click video generation
-- Task progress
-- Preview/export
+`pnpm demo:fallback-videos` renders local dynamic previews without Ark credentials. These are useful for UI and renderer checks but should not be presented as real model output.
 
-P1:
+`pnpm ark:smoke` validates the Ark text path. Add `-- --video` only when intentionally spending video-generation quota.
 
-- Tag/slice search with lexical plus embedding scoring
-- Shot-level editing
-- Ark provider plus fallback
-- Ark video task response shape calibration through redacted debug samples
-- Real slice thumbnail extraction for uploaded video assets
-- Optional TTS/BGM audio mix with deterministic fallback providers
-- Material-aware FFmpeg mixing
-- Export source labels for Ark-generated, hybrid-mix, material-mix and fallback-preview outputs
-- Generation trace and retry
-- Factor metric backflow board with manual and CSV ingestion
-- A/B creative variants and rules-based compliance review
-- Docker and CI scaffolding
+## Quality Gates
 
-P2 documented or partially scaffolded:
+```bash
+pnpm format:check
+pnpm stylelint
+pnpm lint
+pnpm prisma:validate
+pnpm prisma:generate
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm check
+```
 
-- Real ad-platform attribution adapter credentials and live sync
-- External content safety provider integration
-- Production observability
+GitHub Actions runs the main CI gate on push and pull request. CodeQL and Docker image builds are available as manual workflows so repository settings or cloud resource availability do not block normal development.
+
+## Judge Walkthrough
+
+Recommended review path:
+
+1. Read this README and [docs/submission.md](docs/submission.md).
+2. Run `pnpm seed`.
+3. Open the web app and visit Assets, Scripts, Create, Jobs and Analytics.
+4. Inspect a job trace and export provenance label.
+5. Run or review `pnpm demo:ark-video` outputs for real Ark/Seedance evidence.
+6. Check [docs/agent-architecture.md](docs/agent-architecture.md) for the creative-agent design.
+
+## Known Boundaries
+
+- Real external ad/TikTok Shop backend sync is not connected; manual and CSV ingestion provide a reproducible substitute.
+- External content-safety providers are not connected; the MVP uses rules plus manual review.
+- Real station-wide viral-video crawling is not implemented; the MVP uses built-in ecommerce methodologies and uploaded reference-material analysis.
+- Video quality depends on model output and prompt specificity. The system records source labels and trace data so fallback outputs are not confused with real Ark output.
+- Cloud deployment is scaffolded but the final public demo URL must be supplied separately.
