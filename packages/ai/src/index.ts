@@ -276,7 +276,8 @@ export const buildCommerceScriptSystemPrompt = () =>
     "Mention product truthfully; do not invent certifications, medical efficacy, guaranteed results, fake scarcity, fake reviews, or competitor names.",
     "Prefer visible proof: texture, scale, before/after organization, hands-on use, packshot, source statement, offer card.",
     'Return strict JSON only: { "scripts": ScriptModel[] }.',
-    "Each ScriptModel needs 4-6 shots, total duration <= 15000ms, subtitle <= 90 chars, voiceover <= 220 chars."
+    "Each ScriptModel needs 4-6 shots, total duration <= 15000ms, subtitle <= 70 chars, voiceover <= 220 chars.",
+    "Write subtitles as short overlay copy, not paragraphs: one benefit or action per shot, ideally 3-7 words."
   ].join(" ");
 
 export const buildCommerceScriptUserPrompt = (input: CommerceScriptInput) =>
@@ -294,7 +295,8 @@ export const buildCommerceScriptUserPrompt = (input: CommerceScriptInput) =>
         "avoid unsupported absolute claims",
         "make the first shot understandable without sound",
         "keep the full export under 15 seconds",
-        "include shot-level materialQuery for asset retrieval"
+        "include shot-level materialQuery for asset retrieval",
+        "keep shot subtitles short enough for a vertical-video bottom caption card"
       ]
     }
   });
@@ -443,7 +445,8 @@ export const compileCommerceShotPrompt = (
     "product remains visible and recognizable",
     "no burned-in fake app UI, no fake review, no unsupported discount or efficacy claim",
     "no readable brand logos, no gibberish labels, no subtitles or UI text inside the generated footage",
-    "avoid morphing product category, color, size, or material during the shot"
+    "avoid morphing product category, color, size, or material during the shot",
+    "leave the lower 22 percent of the frame visually simple for post-render subtitles"
   ];
   const assetHints = input.assetHints?.length
     ? input.assetHints
@@ -484,6 +487,7 @@ export const compileCommerceShotPrompt = (
     qualityPlan.motion ? `Motion target: ${qualityPlan.motion}.` : "",
     qualityPlan.composition ? `Composition target: ${qualityPlan.composition}.` : "",
     `Constraints: ${compactConstraints.join("; ")}.`,
+    "Composition rule: keep product identity, hands, faces, and key proof above the bottom caption-safe zone.",
     "Keep the clip cinematic but merchant-realistic; subtitles and CTA overlays are added later by the renderer, so do not generate text overlays."
   ]
     .filter(Boolean)
@@ -492,7 +496,7 @@ export const compileCommerceShotPrompt = (
   return {
     prompt,
     trace: {
-      compilerVersion: "commerce-shot-v2",
+      compilerVersion: "commerce-shot-v3",
       platform,
       productId: input.product.id,
       templateId: input.methodology.templateId,

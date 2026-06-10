@@ -10,6 +10,8 @@ Product brief -> Asset library -> Structured material analysis -> Script generat
 -> Factor analytics backflow
 ```
 
+Project page for judges: `https://michaelcao0.github.io/tiktok/` after enabling GitHub Pages from the `docs/` folder. The same static page is available locally at `docs/index.html` and includes the 4-minute demo video plus the Seedance sample.
+
 ## Core Value
 
 Help TikTok Shop merchants create conversion-oriented product videos under 15 seconds from product information and compliant materials. The system does not only generate a script: it connects material management, script strategy, shot-level creation, video rendering, compliance review and factor-level performance analysis into one reproducible workflow.
@@ -118,7 +120,7 @@ Use local `.env` files or deployment platform secrets for sensitive values. `.en
 Useful checks before pushing:
 
 ```bash
-rg "ark-[A-Za-z0-9-]+|APIKEY|ARK_API_KEY=.+|ARK_TEXT_MODEL=ep-|ARK_VIDEO_MODEL=ep-" .
+rg "ark-[A-Za-z0-9-]+|ARK_API_KEY=.+|ARK_TEXT_MODEL=ep-|ARK_VIDEO_MODEL=ep-" .
 git status --short
 ```
 
@@ -161,6 +163,18 @@ Open:
 ```text
 http://localhost:5173
 ```
+
+Reviewer preview without local infrastructure:
+
+```bash
+pnpm --filter @videopilot/web dev
+```
+
+If the API, database or Redis are not reachable, the web app switches to local reviewer data. This
+mode is a read-oriented product showcase backed by `apps/web/src/lib/demo-data.ts` and the bundled
+Seedance evidence clip under `apps/web/public/demo/`. It keeps the UI, source labels, trace and
+analytics board understandable without pretending to enqueue real backend jobs. Use the full Docker
+Compose path above for end-to-end API, worker, queue and database verification.
 
 On Windows environments where pnpm is not globally available:
 
@@ -217,6 +231,17 @@ pnpm ark:smoke
 `pnpm seed` creates reviewer-friendly product data, assets, scripts, job traces, placeholder exports, A/B variants and metrics. Seeded exports are walkthrough data, not evidence of a real Ark/Seedance run.
 
 `pnpm demo:ark-video` is the real Ark/Seedance path. It consumes video-generation quota, downloads generated clips into `storage/demo-ark-seedance/<case-id>`, stitches them into a vertical MP4 and writes a redacted manifest. Only outputs labeled `ARK_GENERATED` should be treated as full Ark/Seedance video evidence.
+
+This repository also includes one previously generated, reviewer-safe 10-second Seedance evidence
+export for the beauty case:
+
+- `apps/web/public/demo/seedance-beauty.mp4`
+- `apps/web/public/demo/seedance-beauty.jpg`
+
+The bundled clip is used by local reviewer data so the frontend can demonstrate a true
+`ARK_GENERATED` export even when the backend is offline. It is not a substitute for rerunning
+`pnpm demo:ark-video` when quota and credentials are available; reruns should be documented through
+the redacted manifest and source-labeled export.
 
 `pnpm demo:fallback-videos` renders local dynamic previews without Ark credentials. These are useful for UI and renderer checks but should not be presented as real model output.
 

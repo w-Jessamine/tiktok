@@ -90,7 +90,7 @@ describe("AI providers", () => {
     expect(compiled.prompt).toContain("hands adjusting compartments");
     expect(compiled.prompt).toContain("Must avoid");
     expect(compiled.prompt).toContain("no burned-in fake app UI");
-    expect(compiled.trace.compilerVersion).toBe("commerce-shot-v2");
+    expect(compiled.trace.compilerVersion).toBe("commerce-shot-v3");
     expect(compiled.trace.materialQuery).toBe("drawer organizer before after proof");
     expect(compiled.trace.productVisualSpec).toContain("rectangular compartments");
     expect(compiled.trace.shotQualityPlan?.motion).toBe("hand adjusts one compartment");

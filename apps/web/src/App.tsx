@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Boxes, Clapperboard, Film, LineChart, PackagePlus } from "lucide-react";
 import type { ComponentType } from "react";
+import { useEffect } from "react";
 import { api } from "./lib/api";
+import { demoIds } from "./lib/demo-data";
 import { useAppStore, type WorkspaceView } from "./lib/store";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { AssetLibrary } from "./components/AssetLibrary";
@@ -25,8 +27,38 @@ const navItems: Array<{
 export const App = () => {
   const view = useAppStore((state) => state.view);
   const setView = useAppStore((state) => state.setView);
+  const selectedProductId = useAppStore((state) => state.selectedProductId);
+  const selectedScriptId = useAppStore((state) => state.selectedScriptId);
+  const activeJobId = useAppStore((state) => state.activeJobId);
+  const setSelectedProductId = useAppStore((state) => state.setSelectedProductId);
+  const setSelectedScriptId = useAppStore((state) => state.setSelectedScriptId);
+  const setActiveJobId = useAppStore((state) => state.setActiveJobId);
+  const healthQuery = useQuery({ queryKey: ["health"], queryFn: api.health, retry: false });
   const productsQuery = useQuery({ queryKey: ["products"], queryFn: api.products });
   const products = productsQuery.data ?? [];
+
+  useEffect(() => {
+    const firstProduct = products[0];
+    if (firstProduct && !selectedProductId) {
+      setSelectedProductId(firstProduct.id);
+    }
+    const firstScript = firstProduct?.scripts?.[0];
+    if (firstScript && !selectedScriptId) {
+      setSelectedScriptId(firstScript.id);
+    }
+    if (healthQuery.data?.mode === "demo" && !activeJobId) {
+      setActiveJobId(demoIds.jobId);
+    }
+  }, [
+    activeJobId,
+    healthQuery.data?.mode,
+    products,
+    selectedProductId,
+    selectedScriptId,
+    setActiveJobId,
+    setSelectedProductId,
+    setSelectedScriptId
+  ]);
 
   return (
     <main className="min-h-screen bg-mist">
@@ -43,23 +75,40 @@ export const App = () => {
               </p>
             </div>
           </div>
-          <nav className="flex flex-wrap gap-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setView(item.id)}
-                  className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition ${
-                    view === item.id ? "bg-ink text-white" : "bg-mist text-ink hover:bg-ink/10"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex min-h-10 items-center rounded-md px-3 text-xs font-bold ${
+                healthQuery.data?.mode === "demo"
+                  ? "bg-sun/30 text-ink"
+                  : healthQuery.data?.mode === "live"
+                    ? "bg-mint/10 text-mint"
+                    : "bg-ink/10 text-ink"
+              }`}
+            >
+              {healthQuery.data?.mode === "demo"
+                ? "Local reviewer data"
+                : healthQuery.data?.mode === "live"
+                  ? "Live API"
+                  : "Checking API"}
+            </span>
+            <nav className="flex flex-wrap gap-2">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setView(item.id)}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition ${
+                      view === item.id ? "bg-ink text-white" : "bg-mist text-ink hover:bg-ink/10"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
         </div>
       </header>
 

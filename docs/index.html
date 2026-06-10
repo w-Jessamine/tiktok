@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TikTok Shop VideoPilot | AIGC 带货视频生成系统</title>
+    <meta
+      name="description"
+      content="南京大学 我的刀盾队：面向 TikTok Shop 商家的 AIGC 带货视频生成系统，从素材入库、剧本生成、分镜干预到一键成片和数据回流。"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #111827;
+        --muted: #586174;
+        --line: #d8dee8;
+        --paper: #f7f9fb;
+        --teal: #0f9f94;
+        --orange: #ff7a1a;
+        --plum: #6d4aff;
+        --navy: #121827;
+        --white: #ffffff;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--paper);
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .hero {
+        position: relative;
+        min-height: 78vh;
+        display: grid;
+        align-items: end;
+        overflow: hidden;
+        background: #101725;
+      }
+
+      .hero::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background:
+          linear-gradient(
+            90deg,
+            rgba(12, 18, 30, 0.92),
+            rgba(12, 18, 30, 0.62) 48%,
+            rgba(12, 18, 30, 0.2)
+          ),
+          url("./demo/seedance-beauty.jpg") center right / cover no-repeat;
+      }
+
+      .hero-inner {
+        position: relative;
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 88px 0 72px;
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: #7df0df;
+        font-size: 15px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        width: min(780px, 100%);
+        margin: 0;
+        color: var(--white);
+        font-size: clamp(42px, 7vw, 92px);
+        line-height: 0.98;
+        font-weight: 900;
+      }
+
+      .hero-copy {
+        width: min(690px, 100%);
+        margin: 26px 0 0;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: clamp(18px, 2vw, 24px);
+        line-height: 1.52;
+        font-weight: 650;
+      }
+
+      .hero-actions,
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .button {
+        display: inline-flex;
+        min-height: 46px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 0 18px;
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .button.primary {
+        color: #111827;
+        background: var(--white);
+      }
+
+      .button.secondary {
+        color: var(--white);
+        border-color: rgba(255, 255, 255, 0.38);
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      main {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      section {
+        padding: 54px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+        gap: 38px;
+        align-items: end;
+        margin-bottom: 24px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: clamp(28px, 4vw, 48px);
+        line-height: 1.06;
+        font-weight: 900;
+      }
+
+      .section-head p,
+      .lead {
+        margin: 0;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.62;
+        font-weight: 620;
+      }
+
+      .video-shell {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #05070d;
+        box-shadow: 0 24px 60px rgba(18, 24, 39, 0.18);
+      }
+
+      video {
+        display: block;
+        width: 100%;
+        max-height: 78vh;
+        background: #05070d;
+      }
+
+      .demo-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .phone-demo {
+        display: grid;
+        align-content: center;
+        gap: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+        background: var(--white);
+      }
+
+      .phone-demo video {
+        aspect-ratio: 9 / 16;
+        height: min(62vh, 640px);
+        margin: 0 auto;
+        border-radius: 8px;
+        object-fit: cover;
+      }
+
+      .caption {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .tile,
+      .shot {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--white);
+      }
+
+      .tile {
+        padding: 22px;
+      }
+
+      .tile strong {
+        display: block;
+        margin-bottom: 9px;
+        font-size: 20px;
+      }
+
+      .tile p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .step {
+        min-height: 132px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+        background: var(--white);
+      }
+
+      .step span {
+        color: var(--teal);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .step b {
+        display: block;
+        margin-top: 12px;
+        font-size: 20px;
+      }
+
+      .shots {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .shot {
+        overflow: hidden;
+      }
+
+      .shot img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+      }
+
+      .shot figcaption {
+        padding: 11px 12px 13px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .architecture {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .arch-box {
+        min-height: 112px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        padding: 20px;
+        color: var(--white);
+        background: var(--navy);
+      }
+
+      .arch-box:nth-child(2) {
+        background: #26364d;
+      }
+
+      .arch-box:nth-child(3) {
+        background: #263f3b;
+      }
+
+      .arch-box:nth-child(4) {
+        background: #3a3150;
+      }
+
+      .arch-box:nth-child(5) {
+        background: #31404a;
+      }
+
+      .arch-box:nth-child(6) {
+        background: #1d514c;
+      }
+
+      .arch-box strong {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 22px;
+      }
+
+      .arch-box span {
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .submit {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 0.45fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .submit-panel {
+        border-radius: 8px;
+        padding: 26px;
+        color: var(--white);
+        background: var(--navy);
+      }
+
+      .submit-panel p {
+        color: rgba(255, 255, 255, 0.74);
+      }
+
+      code {
+        padding: 2px 6px;
+        border-radius: 5px;
+        color: #0b5b55;
+        background: #e6f6f2;
+        font-size: 0.92em;
+      }
+
+      footer {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 30px 0 42px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      @media (max-width: 900px) {
+        .hero-inner {
+          padding: 78px 0 58px;
+        }
+
+        .section-head,
+        .demo-grid,
+        .submit {
+          grid-template-columns: 1fr;
+        }
+
+        .grid,
+        .flow,
+        .architecture {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .shots {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 560px) {
+        .hero {
+          min-height: 74vh;
+        }
+
+        .hero-inner,
+        main,
+        footer {
+          width: min(100% - 28px, 1180px);
+        }
+
+        h1 {
+          font-size: 42px;
+        }
+
+        .grid,
+        .flow,
+        .architecture,
+        .shots {
+          grid-template-columns: 1fr;
+        }
+
+        .button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">Nanjing University · 我的刀盾队</p>
+        <h1>TikTok Shop VideoPilot</h1>
+        <p class="hero-copy">
+          面向商家的 AIGC 带货视频生成系统，把商品素材、剧本分镜、Seedance 成片、任务 trace
+          和数据回流组织成一条可复核的端到端链路。
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#demo">观看演示视频</a>
+          <a class="button secondary" href="https://github.com/MichaelCao0/tiktok">查看源码仓库</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="demo">
+        <div class="section-head">
+          <h2>先看完整演示</h2>
+          <p>
+            4 分钟演示覆盖素材库、剧本生成、分镜编辑、一键成片、任务进度、预览导出、A/B
+            数据看板和工程架构。真实广告视频样例时长控制在 15 秒以内。
+          </p>
+        </div>
+        <div class="demo-grid">
+          <div class="video-shell">
+            <video controls preload="metadata" poster="./demo/seedance-beauty.jpg">
+              <source src="./demo/videopilot-demo-video.mp4" type="video/mp4" />
+            </video>
+          </div>
+          <aside class="phone-demo">
+            <video controls muted preload="metadata" poster="./demo/seedance-beauty.jpg">
+              <source src="./demo/seedance-beauty.mp4" type="video/mp4" />
+            </video>
+            <div>
+              <strong>Seedance 真实生成样例</strong>
+              <p class="caption">双分镜竖版成片，系统后期统一控制字幕、CTA、封面和导出来源标记。</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>核心业务价值</h2>
+          <p>
+            不是单点文生视频入口，而是把商家发布短视频前后的关键动作连起来，让 AI
+            生成结果更可控、更可追踪，也更贴近转化优化。
+          </p>
+        </div>
+        <div class="flow">
+          <div class="step"><span>01</span><b>素材入库</b></div>
+          <div class="step"><span>02</span><b>剧本生成</b></div>
+          <div class="step"><span>03</span><b>分镜创作</b></div>
+          <div class="step"><span>04</span><b>数据回流</b></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="grid">
+          <div class="tile">
+            <strong>P0 必做链路完整</strong>
+            <p>覆盖商品素材上传、剧本生成、基础分镜、一键成片、任务进度、预览导出。</p>
+          </div>
+          <div class="tile">
+            <strong>P1 体验增强</strong>
+            <p>支持素材标签检索、分镜级编辑、字幕 / BGM / TTS Provider、失败重试和生成 trace。</p>
+          </div>
+          <div class="tile">
+            <strong>P2 增长闭环</strong>
+            <p>提供 A/B 变体、创作因子归因雏形、Agent-style Prompt 编排和合规审核流。</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>产品界面</h2>
+          <p>前端默认支持 reviewer fallback 数据，即使后端服务未启动，也能快速看到完整产品价值。</p>
+        </div>
+        <div class="shots">
+          <figure class="shot">
+            <img src="./assets/screens/assets.png" alt="素材库页面截图" />
+            <figcaption>素材库</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screens/scripts.png" alt="剧本工作台截图" />
+            <figcaption>剧本工作台</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screens/create.png" alt="创作工作台截图" />
+            <figcaption>创作工作台</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screens/jobs.png" alt="任务中心截图" />
+            <figcaption>任务 trace</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="./assets/screens/analytics.png" alt="数据看板截图" />
+            <figcaption>A/B 数据看板</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>技术架构</h2>
+          <p>
+            前后端分离，长任务队列承接模型生成和视频渲染，AI Provider 可在真实 Ark/Seedance、Hybrid
+            和 Mock 模式之间切换。
+          </p>
+        </div>
+        <div class="architecture">
+          <div class="arch-box"><strong>Web</strong><span>React / Vite 商家工作台</span></div>
+          <div class="arch-box"><strong>API</strong><span>Fastify / Prisma 服务层</span></div>
+          <div class="arch-box"><strong>Worker</strong><span>Redis / BullMQ 长任务</span></div>
+          <div class="arch-box">
+            <strong>AI</strong><span>Ark / Seedance / Hybrid / Mock Provider</span>
+          </div>
+          <div class="arch-box">
+            <strong>Video</strong><span>FFmpeg 字幕、CTA、封面和导出</span>
+          </div>
+          <div class="arch-box"><strong>Growth</strong><span>A/B 变体与创作因子看板</span></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="submit">
+          <div>
+            <h2>快速复核</h2>
+            <p class="lead">
+              克隆仓库后执行 <code>pnpm install</code> 和
+              <code>pnpm --filter @videopilot/web dev</code>，打开
+              <code>http://localhost:5173</code>。后端不可用时，前端会自动进入
+              <code>Local reviewer data</code> 模式。
+            </p>
+            <div class="links">
+              <a class="button primary" href="./submission.md">提报文档</a>
+              <a class="button primary" href="./architecture.md">架构说明</a>
+              <a class="button primary" href="./api.md">API 清单</a>
+            </div>
+          </div>
+          <div class="submit-panel">
+            <h2>提交信息</h2>
+            <p>团队：南京大学 · 我的刀盾队</p>
+            <p>成员：曹喆、王佳铭</p>
+            <p>课题：电商场景 AIGC 带货视频生成系统</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      源码与提交材料不包含真实 API Key、模型
+      Endpoint、账号、额度或其他敏感资源信息；真实模型参数仅通过本地 .env 或部署平台 Secret 注入。
+    </footer>
+  </body>
+</html>

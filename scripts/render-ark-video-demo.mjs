@@ -181,6 +181,7 @@ const demoCases = [
     ],
     productVisualSpec:
       "A small clear glass serum bottle with pale golden liquid and a plain white dropper cap, shown on a clean bathroom counter; no brand text, no medical visuals.",
+    demoCaptions: ["FAST-ABSORBING GLOW", "NO STICKY FINISH"],
     shotQualityPlans: {
       0: {
         mustShow: [
@@ -369,6 +370,7 @@ const renderCase = async (demoCase) => {
 
   const selectedStoryboardShots = selectDemoShots(baseScript.shots).map((shot, order) => ({
     ...shot,
+    subtitle: demoCase.demoCaptions?.[order] ?? shot.subtitle,
     order: Number.isInteger(selectedShotOrder) ? shot.order : order
   }));
 
@@ -516,7 +518,7 @@ const renderCase = async (demoCase) => {
         },
         methodology: demoCase.methodology,
         promptCompiler: {
-          version: "commerce-shot-v2",
+          version: "commerce-shot-v3",
           summary:
             "Each Ark/Seedance prompt is compiled from product truth, methodology strategy/factors, generated storyboard shots, asset retrieval hints and compliance constraints."
         },

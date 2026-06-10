@@ -147,14 +147,30 @@ const drawTextLines = (input: {
   color?: string;
   x?: string;
   box?: boolean;
+  border?: boolean;
 }) =>
   input.lines
     .map((line, index) => {
       const y = `${input.y}${index === 0 ? "" : `+${index * input.lineHeight}`}`;
       const box = input.box ? ":box=1:boxcolor=black@0.28:boxborderw=18" : "";
-      return `drawtext=text='${escapeDrawText(line)}':fontcolor=${input.color ?? "white"}:fontsize=${input.fontSize}:x=${input.x ?? "(w-text_w)/2"}:y=${y}${box}`;
+      const border =
+        input.border === false
+          ? ""
+          : ":borderw=2:bordercolor=black@0.44:shadowcolor=black@0.42:shadowx=0:shadowy=2:fix_bounds=1";
+      return `drawtext=text='${escapeDrawText(line)}':fontcolor=${input.color ?? "white"}:fontsize=${input.fontSize}:x=${input.x ?? "(w-text_w)/2"}:y=${y}${box}${border}`;
     })
     .join(",");
+
+const fitFontSize = (text: string, base: number, min: number, comfortableChars: number) => {
+  const overflow = Math.max(0, text.length - comfortableChars);
+  return Math.max(min, base - Math.ceil(overflow / 8) * 2);
+};
+
+const cleanSubtitle = (text: string) =>
+  text
+    .replace(/^proof:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 export const buildMockRenderFilter = (shots: StoryboardShot[], aspectRatio: VideoAspectRatio) => {
   const [width, height] = getResolution(aspectRatio).split("x").map(Number) as [number, number];
@@ -242,25 +258,34 @@ const buildSubtitleOverlay = (input: {
   aspectRatio: VideoAspectRatio;
   index: number;
 }) => {
+  const subtitle = cleanSubtitle(input.shot.subtitle);
   const subtitleLines = wrapText(
-    input.shot.subtitle.slice(0, 88),
-    input.aspectRatio === "HORIZONTAL_16_9" ? 54 : 30,
+    subtitle.slice(0, 64),
+    input.aspectRatio === "HORIZONTAL_16_9" ? 46 : 22,
     2
   );
-  const queryBadge = escapeDrawText(input.shot.materialQuery.split(/\s+/).slice(0, 4).join(" "));
-  const fontSize = input.aspectRatio === "HORIZONTAL_16_9" ? 30 : 28;
-  const badgeSize = input.aspectRatio === "HORIZONTAL_16_9" ? 20 : 19;
+  const fontSize = fitFontSize(
+    subtitleLines.join(" "),
+    input.aspectRatio === "HORIZONTAL_16_9" ? 34 : 37,
+    input.aspectRatio === "HORIZONTAL_16_9" ? 28 : 29,
+    input.aspectRatio === "HORIZONTAL_16_9" ? 42 : 24
+  );
+  const ctaText = `${subtitle} ${input.shot.visualPrompt} ${input.shot.materialQuery}`;
+  const ctaEnabled =
+    input.index > 0 && (/shop|tap|compare|offer|cart|cta/i.test(ctaText) || input.index >= 3);
   return [
-    "drawbox=x=0:y=ih*0.70:w=iw:h=ih*0.30:color=black@0.26:t=fill",
-    `drawbox=x=iw*0.07:y=ih*0.075:w=iw*0.28:h=ih*0.044:color=black@0.30:t=fill:enable='${between(0, 1.7)}'`,
-    `drawtext=text='SHOT ${input.index + 1}':fontcolor=white@0.86:fontsize=${badgeSize}:x=w*0.09:y=h*0.085:enable='${between(0, 1.7)}'`,
-    `drawtext=text='${queryBadge}':fontcolor=white@0.72:fontsize=${badgeSize}:x=w*0.09:y=h*0.13:enable='${between(0.15, 1.9)}'`,
+    ...(ctaEnabled
+      ? [
+          "drawtext=text='SHOP NOW':fontcolor=#ff7a1a:fontsize=34:x=(w-text_w)/2:y=h*0.790:borderw=4:bordercolor=white@0.92:shadowcolor=black@0.55:shadowx=0:shadowy=4:fix_bounds=1",
+          "drawbox=x=(iw-iw*0.24)/2:y=ih*0.842:w=iw*0.24:h=4:color=#ff7a1a@0.96:t=fill"
+        ]
+      : []),
     drawTextLines({
       lines: subtitleLines,
       fontSize,
-      y: "h*0.765",
-      lineHeight: fontSize + 10,
-      box: true
+      y: "h*0.885",
+      lineHeight: fontSize + 9,
+      box: false
     })
   ].join(",");
 };
